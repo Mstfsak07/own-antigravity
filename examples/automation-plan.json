@@ -1,0 +1,52 @@
+{
+  "goal": "Implement the project plan phase by phase and keep pushing unresolved work into the next task.",
+  "workspaceDir": ".",
+  "phases": [
+    {
+      "id": "discovery",
+      "title": "Discovery",
+      "objective": "Understand the codebase and identify the change surface before editing.",
+      "tasks": [
+        {
+          "id": "claude-discovery",
+          "title": "Architecture review",
+          "provider": "claude",
+          "model": "claude-sonnet-4-6",
+          "role": "senior software architect",
+          "prompt": "Inspect the repository, identify the modules that must change for the user plan, and make direct edits only if the work is obvious and low risk."
+        },
+        {
+          "id": "gemini-risk-review",
+          "title": "Risk and test review",
+          "provider": "gemini",
+          "model": "gemini-2.5-pro",
+          "role": "integration and QA engineer",
+          "prompt": "Review the current workspace state, identify missing tests, regression risks, and any implementation gaps left by previous tasks."
+        }
+      ]
+    },
+    {
+      "id": "implementation",
+      "title": "Implementation",
+      "objective": "Apply the actual feature work and fold prior gaps into the implementation step.",
+      "tasks": [
+        {
+          "id": "claude-implementation",
+          "title": "Primary implementation",
+          "provider": "claude",
+          "model": "claude-sonnet-4-6",
+          "role": "lead implementer",
+          "prompt": "Implement the requested work, use prior carryover items as mandatory followups, and list any remaining unfinished work precisely."
+        },
+        {
+          "id": "gemini-verification",
+          "title": "Verification pass",
+          "provider": "gemini",
+          "model": "gemini-2.5-pro",
+          "role": "verification engineer",
+          "prompt": "Review the implementation, tighten any weak areas, and produce the exact remaining followups for the next iteration."
+        }
+      ]
+    }
+  ]
+}

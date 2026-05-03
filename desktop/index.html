@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Own Antigravity Manager</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Primary navigation">
+      <div class="brand">
+        <span class="brand-mark">A</span>
+        <div>
+          <strong>Own Antigravity</strong>
+          <span>Gateway</span>
+        </div>
+      </div>
+      <nav class="nav-list">
+        <button class="nav active" data-page="dashboard">Kontrol Paneli</button>
+        <button class="nav" data-page="accounts">Hesaplar</button>
+        <button class="nav" data-page="apiProxy">API Proxy</button>
+        <button class="nav" data-page="metrics">Trafik Günlükleri</button>
+        <button class="nav" data-page="settings">Ayarlar</button>
+      </nav>
+    </aside>
+
+    <div class="workspace">
+      <header class="topbar">
+        <div class="search-shell">
+          <input id="globalSearch" aria-label="Search" placeholder="Model, yol veya duruma göre filtrele...">
+        </div>
+        <div class="topbar-actions">
+          <div class="active-account-pill">
+            <span>Active</span>
+            <strong id="topActiveAccount">unknown</strong>
+          </div>
+          <button id="themeToggle" class="icon-button" type="button" aria-label="Toggle theme">◐</button>
+          <select id="language" aria-label="Language">
+            <option value="en">EN</option>
+            <option value="tr">TR</option>
+          </select>
+          <button id="refresh" type="button">Refresh</button>
+        </div>
+      </header>
+
+      <main class="content">
+        <section id="dashboard" class="page active" aria-labelledby="dashboardTitle">
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">Overview</p>
+              <h2 id="dashboardTitle">Dashboard</h2>
+            </div>
+            <button id="dashboardAddAccount" type="button">Add account</button>
+          </div>
+          <div id="overviewCards" class="metric-grid" aria-live="polite"></div>
+          <div class="dashboard-grid">
+            <section class="card">
+              <div class="card-header">
+                <h3>Recent Activity</h3>
+              </div>
+              <div id="recentActivity" class="activity-list"></div>
+            </section>
+            <section class="card">
+              <div class="card-header">
+                <h3>Provider Status</h3>
+              </div>
+              <div id="providerBadges" class="provider-badges"></div>
+            </section>
+          </div>
+          <section class="card health-panel">
+            <div class="card-header">
+              <h3>Live Health</h3>
+            </div>
+            <div id="healthSnapshot"></div>
+          </section>
+          <section class="card audit-panel">
+            <div class="card-header">
+              <h3>Audit Trail</h3>
+            </div>
+            <div id="auditTrail" class="audit-list"></div>
+          </section>
+          <section class="card quota-overview-card">
+            <div class="card-header">
+              <h3>Model Kotaları</h3>
+            </div>
+            <div id="modelQuotaList" class="model-quota-list"></div>
+          </section>
+        </section>
+
+        <section id="accounts" class="page" aria-labelledby="accountsTitle">
+          <div class="accounts-toolbar">
+            <div class="account-search">
+              <span aria-hidden="true">⌕</span>
+              <input id="accountSearch" aria-label="Account search" placeholder="E-posta ara...">
+            </div>
+            <div class="account-filter-pills" aria-label="Account filters">
+              <button type="button" class="account-filter active" data-filter="all">Tümü <span id="accountTotalCount">0</span></button>
+              <button type="button" class="account-filter" data-filter="healthy">Sağlıklı <span id="accountHealthyCount">0</span></button>
+              <button type="button" class="account-filter" data-filter="quota">Kotalı <span id="accountQuotaCount">0</span></button>
+              <button type="button" class="account-filter" data-filter="empty">Kotasız <span id="accountEmptyQuotaCount">0</span></button>
+            </div>
+            <div class="account-toolbar-actions">
+              <button id="addAccount" type="button" class="square-button">+</button>
+              <button id="disableBrokenAccounts" type="button">⚠ Hesapları Kontrol Et</button>
+              <button id="refreshAccounts" type="button" class="primary-button">↻ Tümünü Yenile</button>
+              <button id="openExport" type="button">⇩ Dışa Aktar</button>
+            </div>
+          </div>
+          <h2 id="accountsTitle" class="visually-hidden">Accounts</h2>
+          <div id="accountCards" class="accounts-table-shell"></div>
+        </section>
+
+        <section id="apiProxy" class="page" aria-labelledby="apiProxyTitle">
+          <h2 id="apiProxyTitle" class="visually-hidden">API Proxy</h2>
+          <div id="apiProxyRoot"></div>
+        </section>
+
+        <section id="metrics" class="page" aria-labelledby="metricsTitle">
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">Trafik</p>
+              <h2 id="metricsTitle">Trafik Günlükleri</h2>
+            </div>
+          </div>
+          <section class="traffic-panel">
+            <div class="traffic-toolbar">
+              <span class="saving-pill"><span></span> Kaydediliyor</span>
+              <input id="trafficFilter" aria-label="Traffic filter" placeholder="Model, yol veya duruma göre filtrele...">
+              <div class="traffic-stats">
+                <strong id="trafficTotal">0 TOPLAM</strong>
+                <strong class="ok-text" id="trafficSuccess">0 BAŞARILI</strong>
+                <strong class="bad-text" id="trafficError">0 HATA</strong>
+              </div>
+            </div>
+            <div class="traffic-filters">
+              <label>
+                <span>Durum</span>
+                <select id="trafficStatus" aria-label="Traffic status filter">
+                  <option value="all">Tümü</option>
+                  <option value="success">Başarılı</option>
+                  <option value="error">Hata</option>
+                </select>
+              </label>
+              <label>
+                <span>Min Token</span>
+                <input id="trafficMinTokens" type="number" min="0" step="1" placeholder="0" aria-label="Minimum token filter">
+              </label>
+              <label>
+                <span>Başlangıç</span>
+                <input id="trafficStart" type="datetime-local" aria-label="Traffic start filter">
+              </label>
+              <label>
+                <span>Bitiş</span>
+                <input id="trafficEnd" type="datetime-local" aria-label="Traffic end filter">
+              </label>
+            </div>
+            <div class="quick-filters" aria-label="Quick filters">
+              <span>HIZLI FİLTRELER:</span>
+              <button type="button" class="filter-chip active">Tümü</button>
+              <button type="button" class="filter-chip">Hata</button>
+              <button type="button" class="filter-chip">Sohbet</button>
+              <button type="button" class="filter-chip">Gemini</button>
+              <button type="button" class="filter-chip">Claude</button>
+            </div>
+            <div class="saved-views">
+              <div class="saved-views-header">
+                <span>Kaydedilmiş Görünümler</span>
+                <div class="saved-views-actions">
+                  <input id="trafficViewName" aria-label="Saved view name" placeholder="Görünüm adı">
+                  <button type="button" id="saveTrafficView">Kaydet</button>
+                </div>
+              </div>
+              <div id="trafficViews" class="saved-view-list"></div>
+            </div>
+            <div class="traffic-columns">
+              <div class="traffic-columns-header">
+                <span>Sütunlar</span>
+                <div class="traffic-columns-actions">
+                  <strong id="trafficColumnsCount">9/9</strong>
+                  <button type="button" id="trafficColumnsReset">Sıfırla</button>
+                </div>
+              </div>
+              <div id="trafficColumns" class="traffic-columns-list"></div>
+            </div>
+            <div class="traffic-table-wrap">
+              <table class="traffic-table">
+                <thead>
+                  <tr id="trafficHead">
+                    <th>Durum</th>
+                    <th>Metot</th>
+                    <th>Model</th>
+                    <th>Protokol</th>
+                    <th>Hesap</th>
+                    <th>Yol</th>
+                    <th>Token'lar</th>
+                    <th>Süre</th>
+                    <th>Zaman</th>
+                  </tr>
+                </thead>
+                <tbody id="trafficRows"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section id="settings" class="page" aria-labelledby="settingsTitle">
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">Local controls</p>
+              <h2 id="settingsTitle">Settings</h2>
+            </div>
+          </div>
+          <div id="settingsRoot"></div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <dialog id="accountModal">
+    <form method="dialog" class="modal">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Connect account</p>
+          <h2>Add Account</h2>
+        </div>
+        <button class="icon-button" value="cancel" aria-label="Close" type="submit">X</button>
+      </div>
+      <div class="tabs" role="tablist">
+        <button type="button" class="tab active" data-tab="oauth">OAuth</button>
+        <button type="button" class="tab" data-tab="manual">Refresh Token</button>
+        <button type="button" class="tab" data-tab="json">JSON Import</button>
+      </div>
+      <section class="tab-panel active" id="tab-oauth">
+        <p>Use your configured Google OAuth client and the local loopback consent flow.</p>
+        <button type="button" id="startOAuth" class="google-button">Login with Google</button>
+      </section>
+      <section class="tab-panel" id="tab-manual">
+        <label>Email <input id="manualEmail" autocomplete="off" placeholder="person@example.com"></label>
+        <label>Refresh token <textarea id="manualRefreshToken" autocomplete="off" placeholder="Paste refresh token"></textarea></label>
+        <button type="button" id="importManual">Import refresh token</button>
+      </section>
+      <section class="tab-panel" id="tab-json">
+        <div id="jsonDropzone" class="dropzone">
+          <input id="jsonFile" type="file" accept="application/json,.json">
+          <strong>Drop JSON file here</strong>
+          <span>or paste JSON below</span>
+        </div>
+        <textarea id="jsonImport" autocomplete="off" placeholder='{"token":{"access_token":"..."}}'></textarea>
+        <button type="button" id="importJson">Import JSON</button>
+      </section>
+    </form>
+  </dialog>
+
+  <dialog id="exportModal">
+    <form method="dialog" class="modal">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Backup</p>
+          <h2>Export backup bundle</h2>
+        </div>
+        <button class="icon-button" value="cancel" aria-label="Close" type="submit">X</button>
+      </div>
+      <label class="check"><input id="encryptedExport" type="checkbox" checked> Encrypted export</label>
+      <p>Bundle includes accounts export, renderer preferences, traffic views, column settings, and local gateway config snapshot.</p>
+      <textarea id="exportOutput" readonly placeholder="Export output"></textarea>
+      <button type="button" id="runExport">Export</button>
+    </form>
+  </dialog>
+
+  <dialog id="confirmModal">
+    <form method="dialog" class="modal compact-modal">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Confirm</p>
+          <h2 id="confirmTitle">Remove account?</h2>
+        </div>
+      </div>
+      <p id="confirmMessage">This action removes the selected account from the local registry.</p>
+      <div class="button-row end">
+        <button id="confirmCancel" value="cancel">Cancel</button>
+        <button id="confirmAccept" value="default" class="danger-button">Remove</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="trafficDetailModal">
+    <form method="dialog" class="modal traffic-detail-modal">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Request Details</p>
+          <h2 id="trafficDetailTitle">Traffic entry</h2>
+        </div>
+        <button class="icon-button" value="cancel" aria-label="Close" type="submit">X</button>
+      </div>
+      <div class="traffic-detail-meta">
+        <div class="traffic-detail-grid">
+          <div><span>ZAMAN</span><strong id="trafficDetailAt">-</strong></div>
+          <div><span>SÜRE</span><strong id="trafficDetailDuration">-</strong></div>
+          <div><span>TOKEN'lar</span><strong id="trafficDetailTokens">-</strong></div>
+          <div><span>PROTOKOL</span><strong id="trafficDetailProvider">-</strong></div>
+          <div><span>MODEL</span><strong id="trafficDetailModel">-</strong></div>
+          <div><span>HESAP</span><strong id="trafficDetailAccount">-</strong></div>
+        </div>
+      </div>
+      <section class="traffic-normalized">
+        <div class="traffic-normalized-grid">
+          <div class="traffic-normalized-block">
+            <span>SYSTEM</span>
+            <pre id="trafficDetailSystem" class="traffic-detail-code compact"></pre>
+          </div>
+          <div class="traffic-normalized-block">
+            <span>PROMPT</span>
+            <pre id="trafficDetailPrompt" class="traffic-detail-code compact"></pre>
+          </div>
+          <div class="traffic-normalized-block">
+            <span>TOOLS</span>
+            <pre id="trafficDetailTools" class="traffic-detail-code compact"></pre>
+          </div>
+          <div class="traffic-normalized-block">
+            <span>THINKING</span>
+            <pre id="trafficDetailThinking" class="traffic-detail-code compact"></pre>
+          </div>
+          <div class="traffic-normalized-block wide">
+            <span>YANIT ÖZETİ</span>
+            <pre id="trafficDetailResponseSummary" class="traffic-detail-code compact"></pre>
+          </div>
+        </div>
+      </section>
+      <section class="traffic-detail-block">
+        <div class="traffic-detail-block-header">
+          <h3>İstek Yükü</h3>
+          <button type="button" id="trafficCopyRequest" class="ghost-button">Kopyala</button>
+        </div>
+        <pre id="trafficDetailRequest" class="traffic-detail-code"></pre>
+      </section>
+      <section class="traffic-detail-block">
+        <div class="traffic-detail-block-header">
+          <h3>Yanıt Yükü</h3>
+          <button type="button" id="trafficCopyResponse" class="ghost-button">Kopyala</button>
+        </div>
+        <pre id="trafficDetailResponse" class="traffic-detail-code"></pre>
+      </section>
+    </form>
+  </dialog>
+
+  <div id="toastStack" class="toast-stack" aria-live="polite"></div>
+  <div id="globalSpinner" class="global-spinner" hidden></div>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

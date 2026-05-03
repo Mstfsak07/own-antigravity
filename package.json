@@ -1,0 +1,70 @@
+{
+  "name": "own-antigravity",
+  "version": "0.1.0",
+  "description": "Local AI proxy for Gemini CLI, Anthropic clients, and simple OpenAI-compatible chat calls using your own provider credentials.",
+  "author": "akMuratNET",
+  "type": "module",
+  "private": true,
+  "main": "desktop/main.cjs",
+  "bin": {
+    "own-ag": "./dist/cli.js"
+  },
+  "scripts": {
+    "dev": "tsx src/cli.ts server",
+    "desktop": "npm run build && electron desktop/main.cjs",
+    "desktop:dev": "npm run build && electron desktop/main.cjs",
+    "desktop:pack": "npm run build && electron-builder --dir",
+    "desktop:dist": "npm run build && electron-builder --win",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/cli.js server",
+    "doctor": "tsx src/cli.ts doctor",
+    "diagnose:ls": "tsx src/cli.ts diagnose:ls",
+    "accounts": "tsx src/cli.ts accounts",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "fastify": "^5.2.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "electron": "^41.3.0",
+    "electron-builder": "^26.0.12",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "build": {
+    "appId": "dev.own-antigravity.gateway",
+    "productName": "Own Antigravity",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "desktop/**/*",
+      "package.json",
+      "README.md",
+      "LICENSE",
+      "NOTICE.md"
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        "portable",
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "goal": "Re-audit the BallRunnerHybrid Unity 6 project after the latest stabilization patches and identify the highest-value remaining work for a build-ready vertical slice.",
+  "workspaceDir": "C:\\Users\\akMuratNET\\Desktop\\BallRunnerHybrid",
+  "phases": [
+    {
+      "id": "final-pass",
+      "title": "Final Stabilization Pass",
+      "objective": "Validate the latest scene/bootstrap/validation/runtime safety changes and identify the smallest remaining blocker set.",
+      "tasks": [
+        {
+          "id": "claude-final-audit",
+          "title": "Post-patch architecture and runtime risk audit",
+          "provider": "claude",
+          "model": "claude-sonnet-4-6",
+          "role": "principal Unity gameplay engineer",
+          "workspaceAccess": false,
+          "contextFiles": [
+            "Assets/Scripts/Core/GameManager.cs",
+            "Assets/Scripts/Core/GameManagerBootstrap.cs",
+            "Assets/Scripts/Core/GameStateController.cs",
+            "Assets/Scripts/Core/SceneReferenceValidator.cs",
+            "Assets/Scripts/Core/MainMenuController.cs",
+            "Assets/Scripts/Core/BootLoader.cs",
+            "Assets/Scripts/Level/GameplayBootstrapper.cs",
+            "Assets/Scripts/Level/LevelRuntimeBuilder.cs",
+            "Assets/Scripts/Level/FinishZone.cs",
+            "Assets/Scripts/Gates/GateBase.cs",
+            "Assets/Scripts/Gates/AddGate.cs",
+            "Assets/Scripts/Gates/SubtractGate.cs",
+            "Assets/Scripts/Gates/MultiplyGate.cs",
+            "Assets/Scripts/Obstacles/SpinBarObstacle.cs",
+            "Assets/Scripts/Obstacles/DamageWallObstacle.cs",
+            "Assets/Editor/BallRunnerProjectTools.cs",
+            "Assets/Tests/Editor/BallRunnerEditModeTests.cs",
+            "Packages/manifest.json"
+          ],
+          "prompt": "Audit this updated Unity runner snapshot after recent stabilization patches. Focus on: direct Gameplay/MainMenu play safety, duplicate state/controller risks, gate trigger correctness, obstacle rebuild fairness, scene validation depth, test coverage adequacy, and any compile/runtime traps introduced by the recent changes. Return only strict JSON."
+        },
+        {
+          "id": "gemini-final-qa",
+          "title": "Post-patch release QA and acceptance gaps",
+          "provider": "gemini",
+          "model": "gemini-2.5-pro",
+          "role": "release QA lead for mobile runner vertical slice",
+          "workspaceAccess": false,
+          "contextFiles": [
+            "ProjectSettings/EditorBuildSettings.asset",
+            "Assets/Scripts/Core/GameManager.cs",
+            "Assets/Scripts/Core/MainMenuController.cs",
+            "Assets/Scripts/Core/SceneReferenceValidator.cs",
+            "Assets/Scripts/Level/GameplayBootstrapper.cs",
+            "Assets/Scripts/Level/LevelRuntimeBuilder.cs",
+            "Assets/Scripts/Level/FinishZone.cs",
+            "Assets/Scripts/UI/HUDController.cs",
+            "Assets/Scripts/UI/ResultPanel.cs",
+            "Assets/Editor/BallRunnerProjectTools.cs",
+            "Assets/Tests/Editor/BallRunnerEditModeTests.cs"
+          ],
+          "prompt": "Review this updated Unity vertical slice snapshot after recent stabilization patches and produce a concise acceptance-gap report. Prioritize the remaining issues that most affect release confidence, player-facing correctness, first-play reliability, and smoke test completeness. Return only strict JSON."
+        }
+      ]
+    }
+  ]
+}

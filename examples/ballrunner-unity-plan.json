@@ -1,0 +1,89 @@
+{
+  "goal": "Turn the Unity 6 BallRunnerHybrid project into a clean, playable, testable, build-ready vertical slice with safe scene flow, centralized ball count, deterministic gate/obstacle behavior, runtime UI sync, and validation tooling.",
+  "workspaceDir": "C:\\Users\\akMuratNET\\Desktop\\BallRunnerHybrid",
+  "phases": [
+    {
+      "id": "discovery",
+      "title": "Project Discovery",
+      "objective": "Audit the Unity project structure, current implementation state, scene flow, and the highest-risk runtime defects before further implementation.",
+      "tasks": [
+        {
+          "id": "claude-project-audit",
+          "title": "Unity project audit and architecture review",
+          "provider": "claude",
+          "model": "claude-sonnet-4-6",
+          "role": "senior Unity gameplay engineer",
+          "workspaceAccess": false,
+          "contextFiles": [
+            "ProjectSettings/EditorBuildSettings.asset",
+            "Assets/Scripts/Core/GameManager.cs",
+            "Assets/Scripts/Balls/BallGroupController.cs",
+            "Assets/Scripts/Level/GameplayBootstrapper.cs",
+            "Assets/Scripts/Level/LevelRuntimeBuilder.cs",
+            "Assets/Scripts/UI/GameplayUIBinder.cs",
+            "Assets/Editor/BallRunnerProjectTools.cs",
+            "Assets/Editor/GameplaySceneAutoSetup.cs"
+          ],
+          "prompt": "Analyze the provided Unity project snapshot and produce a concrete audit focused on: scene flow, build order, state management, ball count ownership, gate/obstacle event safety, auto-setup idempotency, and hidden compile/runtime risks. Do not assume unshown files. Return only strict JSON."
+        },
+        {
+          "id": "gemini-gameplay-qa",
+          "title": "Gameplay loop, UX, and QA checklist review",
+          "provider": "gemini",
+          "model": "gemini-2.5-pro",
+          "role": "gameplay designer and QA reviewer",
+          "workspaceAccess": false,
+          "contextFiles": [
+            "ProjectSettings/EditorBuildSettings.asset",
+            "Assets/Scripts/Player/PlayerMover.cs",
+            "Assets/Scripts/UI/HUDController.cs",
+            "Assets/Scripts/UI/ResultPanel.cs",
+            "Assets/Scripts/Level/GameplayBootstrapper.cs",
+            "Assets/Editor/GameplaySceneAutoSetup.cs"
+          ],
+          "prompt": "Review the provided Unity runner snapshot as a first vertical slice. Evaluate gameplay readability, level pacing, gate and obstacle clarity, HUD feedback, restart/menu flow, and mobile/desktop control feel. Produce concrete QA and UX recommendations. Return only strict JSON."
+        }
+      ]
+    },
+    {
+      "id": "stabilization",
+      "title": "Implementation Gap Review",
+      "objective": "Use the discovery outputs to identify remaining blockers after the current implementation pass and define the next safest implementation work.",
+      "tasks": [
+        {
+          "id": "claude-gap-pass",
+          "title": "Remaining implementation blockers",
+          "provider": "claude",
+          "model": "claude-sonnet-4-6",
+          "role": "principal Unity architect",
+          "workspaceAccess": false,
+          "contextFiles": [
+            "Assets/Scripts/Core/GameManager.cs",
+            "Assets/Scripts/Balls/BallGroupController.cs",
+            "Assets/Scripts/Obstacles/SpinBarObstacle.cs",
+            "Assets/Scripts/Obstacles/DamageWallObstacle.cs",
+            "Assets/Scripts/Level/GameplayBootstrapper.cs",
+            "Assets/Editor/BallRunnerProjectTools.cs"
+          ],
+          "prompt": "Using the provided snapshot and prior task outputs, identify the highest-priority remaining blockers to reach playable, build-ready quality. Focus on singleton lifetime, stale references, duplicate trigger paths, level wiring, validation depth, and restart/menu reliability. Return only strict JSON."
+        },
+        {
+          "id": "gemini-smoke-criteria",
+          "title": "Smoke test and acceptance review",
+          "provider": "gemini",
+          "model": "gemini-2.5-pro",
+          "role": "release QA lead",
+          "workspaceAccess": false,
+          "contextFiles": [
+            "ProjectSettings/EditorBuildSettings.asset",
+            "Assets/Scripts/Core/GameManager.cs",
+            "Assets/Scripts/UI/ResultPanel.cs",
+            "Assets/Scripts/Level/FinishZone.cs",
+            "Assets/Scripts/Level/GameplayBootstrapper.cs"
+          ],
+          "prompt": "Using the provided snapshot and prior outputs, produce a concise release QA checklist for this Unity runner. Mark the most likely fail points for first play, restart flow, win/fail UX, count correctness, obstacle fairness, and build validation. Return only strict JSON."
+        }
+      ]
+    }
+  ]
+}
