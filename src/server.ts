@@ -18,6 +18,14 @@ function bearerToken(value: string | undefined): string | undefined {
   return value.replace(/^Bearer\s+/i, "");
 }
 
+function isAllowedCorsOrigin(origin: string | undefined): boolean {
+  return Boolean(
+    origin &&
+      (/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/i.test(origin) ||
+        /^chrome-extension:\/\/[a-p]{32}$/i.test(origin))
+  );
+}
+
 export function buildServer(config: ProxyConfig) {
   const runtime = createRuntime(config);
   const app = Fastify({
@@ -32,13 +40,17 @@ export function buildServer(config: ProxyConfig) {
   app.addHook("onRequest", async (request, reply) => {
     const path = request.url.split("?")[0];
     const origin = request.headers.origin;
-    if (origin && !/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/i.test(origin)) {
+    if (origin && !isAllowedCorsOrigin(origin)) {
       return reply.status(403).send({
         error: {
           message: "CORS origin is not allowed",
           type: "authentication_error"
         }
       });
+    }
+    if (isAllowedCorsOrigin(origin)) {
+      reply.header("access-control-allow-origin", origin);
+      reply.header("vary", "origin");
     }
     if (request.method === "OPTIONS") {
       reply.header("access-control-allow-origin", origin ?? `http://${config.host}:${config.port}`);
@@ -83,7 +95,7 @@ export function buildServer(config: ProxyConfig) {
 
   app.addHook("onResponse", async (request, reply) => {
     const origin = request.headers.origin;
-    if (origin && /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/i.test(origin)) {
+    if (isAllowedCorsOrigin(origin)) {
       reply.header("access-control-allow-origin", origin);
       reply.header("vary", "origin");
     }

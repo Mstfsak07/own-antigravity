@@ -64,6 +64,21 @@ describe("server", () => {
     expect(response.json()).toMatchObject({ object: "list" });
   });
 
+  it("allows chrome extension origins with local auth", async () => {
+    const app = buildServer(testConfig());
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/models",
+      headers: {
+        origin: "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        authorization: "Bearer local-test-key"
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["access-control-allow-origin"]).toBe("chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+  });
+
   it("returns redacted admin status", async () => {
     const app = buildServer(testConfig());
     const response = await app.inject({
