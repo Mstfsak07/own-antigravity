@@ -33,7 +33,8 @@ describe("account diagnosis", () => {
       canDisable: true,
       disableReason: "manual:auth_error"
     });
-    expect(diagnosis.steps.join("\n")).toContain("gcloud auth login --update-adc");
+    expect(diagnosis.steps.join("\n")).toContain("Uygulamada hesabı kaldırıp yeniden OAuth ile ekle.");
+    expect(diagnosis.steps.join("\n")).toContain("Bu hesap `gcloud auth list` içinde görünüyorsa");
   });
 
   it("flags future-token 500 accounts as upstream failures", () => {

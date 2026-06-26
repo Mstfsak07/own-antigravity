@@ -2,6 +2,10 @@ function providerFromModel(name) {
   const normalized = String(name || "").toLowerCase();
   if (normalized.includes("claude")) return "Claude";
   if (normalized.includes("gemini")) return "Gemini";
+  if (normalized.includes("groq")) return "Groq";
+  if (normalized.includes("cerebras")) return "Cerebras";
+  if (normalized.includes("ollama")) return "Ollama";
+  if (normalized.includes("mistral")) return "Mistral";
   if (normalized.includes("gpt") || normalized.includes("openai")) return "OpenAI";
   return "Model";
 }

@@ -48,6 +48,33 @@ describe("toGeminiRequest", () => {
       }
     });
   });
+
+  it("keeps base64 image_url parts as Gemini inlineData", () => {
+    const mapped = toGeminiRequest({
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Describe this panel." },
+            { type: "image_url", image_url: { url: "data:image/png;base64,ZmFrZQ==" } }
+          ]
+        }
+      ]
+    });
+
+    expect(mapped).toEqual({
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: "Describe this panel." },
+            { inlineData: { mimeType: "image/png", data: "ZmFrZQ==" } }
+          ]
+        }
+      ],
+      generationConfig: {}
+    });
+  });
 });
 
 describe("runtime model aliases", () => {
@@ -72,7 +99,7 @@ describe("runtime model aliases", () => {
     }));
 
     expect(runtime.resolveModel("gpt-4o")).toBe("gemini-2.5-flash");
-    expect(runtime.resolveModel(undefined)).toBe("gemini-3.1-pro-high");
+    expect(runtime.resolveModel(undefined)).toBe("gemini-2.5-pro");
   });
 });
 
@@ -148,7 +175,7 @@ describe("openai-compatible Gemini routing", () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
-      model: "gemini-3.1-pro-high",
+      model: "gemini-2.5-pro",
       choices: [{ message: { content: "cloud code response" } }],
       usage: {
         prompt_tokens: 3,
@@ -173,7 +200,8 @@ describe("openai-compatible Gemini routing", () => {
         token: {
           access_token: "token-a",
           refresh_token: "refresh-a",
-          expiry_timestamp: Math.floor(Date.now() / 1000) + 3600
+          expiry_timestamp: Math.floor(Date.now() / 1000) + 3600,
+          project_id: "project-a"
         },
         quota: {
           models: [{ name: "gemini-2.5-pro", percentage: 100 }]
@@ -189,7 +217,8 @@ describe("openai-compatible Gemini routing", () => {
         token: {
           access_token: "token-b",
           refresh_token: "refresh-b",
-          expiry_timestamp: Math.floor(Date.now() / 1000) + 3600
+          expiry_timestamp: Math.floor(Date.now() / 1000) + 3600,
+          project_id: "project-b"
         },
         quota: {
           models: [{ name: "gemini-2.5-pro", percentage: 100 }]
@@ -311,6 +340,171 @@ describe("openai-compatible Gemini routing", () => {
       usage: { prompt_tokens: 5, completion_tokens: 7, total_tokens: 12 }
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await app.close();
+  });
+
+  it.each([
+    {
+      provider: "groq",
+      model: "groq/openai/gpt-oss-20b",
+      endpoint: "https://api.groq.com/openai/v1/chat/completions",
+      config: {
+        groq: {
+          enabled: true,
+          apiKey: "groq-test-key",
+          apiKeys: ["groq-test-key"],
+          baseUrl: "https://api.groq.com/openai",
+          defaultModel: "groq/openai/gpt-oss-20b"
+        }
+      }
+    },
+    {
+      provider: "cerebras",
+      model: "cerebras/gpt-oss-120b",
+      endpoint: "https://api.cerebras.ai/v1/chat/completions",
+      config: {
+        cerebras: {
+          enabled: true,
+          apiKey: "cerebras-test-key",
+          apiKeys: ["cerebras-test-key"],
+          baseUrl: "https://api.cerebras.ai",
+          defaultModel: "cerebras/gpt-oss-120b"
+        }
+      }
+    },
+    {
+      provider: "ollama",
+      model: "ollama/llama3.2",
+      endpoint: "http://127.0.0.1:11434/v1/chat/completions",
+      config: {
+        ollama: {
+          enabled: true,
+          apiKey: "ollama",
+          apiKeys: ["ollama"],
+          baseUrl: "http://127.0.0.1:11434",
+          defaultModel: "ollama/llama3.2"
+        }
+      }
+    },
+    {
+      provider: "mistral",
+      model: "mistral/mistral-small-latest",
+      endpoint: "https://api.mistral.ai/v1/chat/completions",
+      config: {
+        mistral: {
+          enabled: true,
+          apiKey: "mistral-test-key",
+          apiKeys: ["mistral-test-key"],
+          baseUrl: "https://api.mistral.ai",
+          defaultModel: "mistral/mistral-small-latest"
+        }
+      }
+    }
+  ])("routes $provider targets to the configured provider", async ({ model, endpoint, config, provider }) => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      expect(String(input)).toBe(endpoint);
+      const body = JSON.parse(String(init?.body ?? "{}"));
+      expect(body.model).not.toContain(`${provider}/`);
+      const headers = new Headers(init?.headers);
+      if (provider === "ollama") {
+        expect(headers.get("authorization")).toBeNull();
+      } else {
+        expect(headers.get("authorization")).toContain("Bearer ");
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            id: `chatcmpl-${provider}`,
+            object: "chat.completion",
+            model: body.model,
+            choices: [{ index: 0, message: { role: "assistant", content: `${provider} ok` }, finish_reason: "stop" }],
+            usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 }
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      );
+    });
+
+    const app = buildServer(
+      baseTestConfig({
+        localApiKey: "local",
+        modelAliases: {
+          "gpt-5": model
+        },
+        ...config
+      })
+    );
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/chat/completions",
+      headers: { authorization: "Bearer local" },
+      payload: {
+        model: "gpt-5",
+        messages: [{ role: "user", content: "hi" }]
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      choices: [{ message: { content: `${provider} ok` } }],
+      usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 }
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await app.close();
+  });
+
+  it("converts prefixed provider chat output to responses format on /v1/responses", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      expect(String(input)).toBe("https://api.groq.com/openai/v1/chat/completions");
+      const body = JSON.parse(String(init?.body ?? "{}"));
+      expect(body.model).toBe("openai/gpt-oss-20b");
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            id: "chatcmpl-groq",
+            object: "chat.completion",
+            model: "openai/gpt-oss-20b",
+            choices: [{ index: 0, message: { role: "assistant", content: "groq response" }, finish_reason: "stop" }],
+            usage: { prompt_tokens: 4, completion_tokens: 6, total_tokens: 10 }
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      );
+    });
+
+    const app = buildServer(
+      baseTestConfig({
+        localApiKey: "local",
+        groq: {
+          enabled: true,
+          apiKey: "groq-test-key",
+          apiKeys: ["groq-test-key"],
+          baseUrl: "https://api.groq.com/openai",
+          defaultModel: "groq/openai/gpt-oss-20b"
+        }
+      })
+    );
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/responses",
+      headers: { authorization: "Bearer local" },
+      payload: {
+        model: "groq/openai/gpt-oss-20b",
+        input: "hello"
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      object: "response",
+      model: "openai/gpt-oss-20b",
+      output: [{ content: [{ text: "groq response" }] }],
+      usage: { input_tokens: 4, output_tokens: 6, total_tokens: 10 }
+    });
 
     await app.close();
   });

@@ -8,7 +8,7 @@ describe("desktop traffic detail modal", () => {
       trafficDetailAt: { textContent: "" },
       trafficDetailDuration: { textContent: "" },
       trafficDetailTokens: { textContent: "" },
-      trafficDetailProvider: { textContent: "" },
+      trafficDetailProvider: { textContent: "", className: "" },
       trafficDetailModel: { textContent: "" },
       trafficDetailAccount: { textContent: "" },
       trafficDetailSystem: { textContent: "" },
@@ -51,6 +51,7 @@ describe("desktop traffic detail modal", () => {
 
     expect(nodes.trafficDetailTitle.textContent).toContain("/v1/chat/completions");
     expect(nodes.trafficDetailTokens.textContent).toBe("1 / 2 / 3");
+    expect(nodes.trafficDetailProvider.className).toBe("protocol-text gemini");
     expect(nodes.trafficDetailPrompt.textContent).toBe("hello");
     expect(nodes.trafficDetailResponseSummary.textContent).toContain("hi");
     expect(nodes.trafficDetailModal.showModal).toHaveBeenCalled();

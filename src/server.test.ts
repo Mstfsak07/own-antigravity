@@ -79,6 +79,21 @@ describe("server", () => {
     expect(response.headers["access-control-allow-origin"]).toBe("chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
   });
 
+  it("allows any chrome extension origin with local auth", async () => {
+    const app = buildServer(testConfig());
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/models",
+      headers: {
+        origin: "chrome-extension://some-nonstandard-extension-id",
+        authorization: "Bearer local-test-key"
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["access-control-allow-origin"]).toBe("chrome-extension://some-nonstandard-extension-id");
+  });
+
   it("returns redacted admin status", async () => {
     const app = buildServer(testConfig());
     const response = await app.inject({
@@ -112,6 +127,40 @@ describe("server", () => {
     expect(response.json()).toMatchObject({
       totalRequests: 1
     });
+  });
+
+  it("protects and serves admin shutdown", async () => {
+    const app = buildServer(testConfig());
+    const unauthorized = await app.inject({
+      method: "POST",
+      url: "/admin/shutdown",
+      payload: {}
+    });
+    const authorized = await app.inject({
+      method: "POST",
+      url: "/admin/shutdown",
+      headers: { authorization: "Bearer local-test-key" },
+      payload: {}
+    });
+
+    expect(unauthorized.statusCode).toBe(401);
+    expect(authorized.statusCode).toBe(200);
+    expect(authorized.json()).toMatchObject({ ok: true, shuttingDown: true });
+  });
+
+  it("does not expose admin shutdown when local auth is disabled", async () => {
+    const app = buildServer(
+      testConfig({
+        localApiKey: undefined
+      })
+    );
+    const response = await app.inject({
+      method: "POST",
+      url: "/admin/shutdown",
+      payload: {}
+    });
+
+    expect(response.statusCode).toBe(404);
   });
 
   it("does not expose provider secrets in health output", async () => {

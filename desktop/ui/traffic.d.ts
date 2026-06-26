@@ -47,6 +47,8 @@ export const TRAFFIC_COLUMNS: TrafficColumn[];
 
 export function defaultTrafficColumns(): TrafficColumnVisibility;
 export function mergeTrafficColumns(snapshot?: unknown): TrafficColumnVisibility;
+export function statusTone(status?: number | string): "success" | "error" | "warning";
+export function protocolTone(provider?: string): string;
 export function normalizeTrafficRecord(
   record: { requestBody?: unknown; responseBody?: unknown } | undefined,
   formatTrafficPayload: (value: unknown) => string

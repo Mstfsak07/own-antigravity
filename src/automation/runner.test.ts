@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { baseTestConfig } from "../testConfig.js";
+import { initAutomationWorkspace } from "./scaffold.js";
 import { runAutomationPlan } from "./runner.js";
 
 const tempDirs: string[] = [];
@@ -38,13 +39,15 @@ describe("runAutomationPlan", () => {
                   id: "claude-discovery",
                   title: "Inspect codebase",
                   provider: "claude",
-                  prompt: "Inspect the repo"
+                  prompt: "Inspect the repo",
+                  workspaceAccess: false
                 },
                 {
                   id: "gemini-plan",
                   title: "Draft next steps",
                   provider: "gemini",
-                  prompt: "Use prior outputs"
+                  prompt: "Use prior outputs",
+                  workspaceAccess: false
                 }
               ]
             }
@@ -159,5 +162,75 @@ describe("runAutomationPlan", () => {
     expect(result.phases[0]?.tasks[0]?.result.summary).toBe("continued after recovery");
     expect(result.phases[0]?.tasks[0]?.attempts.some((attempt) => attempt.provider === "claude" && !attempt.ok)).toBe(true);
     expect(readFileSync(result.summaryPath, "utf8")).toContain("recovery:");
+  });
+
+  it("passes global context files into task prompts", async () => {
+    const dir = makeDir();
+    writeFileSync(join(dir, "GLOBAL.md"), "shared context", "utf8");
+    const planPath = join(dir, "plan.json");
+    writeFileSync(
+      planPath,
+      JSON.stringify(
+        {
+          goal: "Ship a feature",
+          workspaceDir: dir,
+          globalContextFiles: ["GLOBAL.md"],
+          phases: [
+            {
+              id: "phase-1",
+              title: "Discovery",
+              tasks: [
+                {
+                  id: "claude-discovery",
+                  title: "Inspect codebase",
+                  provider: "claude",
+                  prompt: "Inspect the repo",
+                  workspaceAccess: false
+                }
+              ]
+            }
+          ]
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    let receivedPrompt = "";
+    await runAutomationPlan(
+      {
+        planPath,
+        workspaceDir: dir,
+        outputDir: join(dir, "runs"),
+        useProxy: false,
+        config: baseTestConfig({ localApiKey: "local" })
+      },
+      {
+        executeAgentCli: async ({ prompt }) => {
+          receivedPrompt = prompt;
+          return JSON.stringify({
+            summary: "ok",
+            deliverables: [],
+            changedFiles: [],
+            followupTasks: [],
+            unresolved: []
+          });
+        }
+      }
+    );
+
+    expect(receivedPrompt).toContain("File: GLOBAL.md");
+    expect(receivedPrompt).toContain("shared context");
+  });
+
+  it("scaffolds a reusable orchestrator workspace", () => {
+    const dir = makeDir();
+    const result = initAutomationWorkspace({ workspaceDir: dir, projectName: "Demo Project" });
+
+    expect(result.createdFiles.length).toBe(5);
+    expect(readFileSync(join(result.orchestratorDir, "plan.json"), "utf8")).toContain("\"globalContextFiles\"");
+    expect(readFileSync(join(result.orchestratorDir, "PROJECT_BRIEF.md"), "utf8")).toContain("# Demo Project");
+    expect(readFileSync(join(result.orchestratorDir, "run.ps1"), "utf8")).toContain("\"automate\"");
   });
 });

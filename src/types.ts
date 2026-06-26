@@ -61,6 +61,40 @@ export type ProxyConfig = {
     baseUrl: string;
     version: string;
   };
+  openai: {
+    apiKey?: string;
+    apiKeys: string[];
+    baseUrl: string;
+    defaultModel: string;
+  };
+  groq: {
+    enabled: boolean;
+    apiKey?: string;
+    apiKeys: string[];
+    baseUrl: string;
+    defaultModel: string;
+  };
+  cerebras: {
+    enabled: boolean;
+    apiKey?: string;
+    apiKeys: string[];
+    baseUrl: string;
+    defaultModel: string;
+  };
+  ollama: {
+    enabled: boolean;
+    apiKey?: string;
+    apiKeys: string[];
+    baseUrl: string;
+    defaultModel: string;
+  };
+  mistral: {
+    enabled: boolean;
+    apiKey?: string;
+    apiKeys: string[];
+    baseUrl: string;
+    defaultModel: string;
+  };
   zai: {
     enabled: boolean;
     apiKey?: string;
@@ -85,7 +119,15 @@ export type ProxyConfig = {
   };
 };
 
-export type ProviderName = "gemini" | "anthropic" | "zai";
+export type ProviderName =
+  | "gemini"
+  | "anthropic"
+  | "openai"
+  | "groq"
+  | "cerebras"
+  | "ollama"
+  | "mistral"
+  | "zai";
 
 export type ErrorClass =
   | "auth_error"

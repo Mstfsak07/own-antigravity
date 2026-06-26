@@ -222,4 +222,273 @@ describe("anthropic proxy", () => {
     expect(usedTokens.at(-1)).toBe("Bearer token-c");
     expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
+
+  it("sends the resolved Antigravity user agent in Claude Cloud Code payloads", async () => {
+    const dir = makeDir();
+    const accountsDir = join(dir, "accounts");
+    mkdirSync(accountsDir, { recursive: true });
+    writeFileSync(
+      join(accountsDir, "account-a.json"),
+      JSON.stringify({
+        id: "cloud-a",
+        email: "a@example.test",
+        token: {
+          access_token: "token-a",
+          expiry_timestamp: Math.floor(Date.now() / 1000) + 3600
+        },
+        quota: {
+          models: [{ name: "claude-sonnet-4-6", percentage: 100 }]
+        }
+      }),
+      "utf8"
+    );
+
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            response: {
+              candidates: [{ content: { role: "model", parts: [{ text: "OK" }] }, finishReason: "STOP" }]
+            }
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      )
+    );
+
+    const app = buildServer(
+      config({
+        localApiKey: "local",
+        cloudCode: { enabled: true, accountsDir, userAgent: "antigravity" },
+        anthropic: { apiKey: "", apiKeys: [] }
+      })
+    );
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/messages",
+      headers: {
+        "x-api-key": "local",
+        "anthropic-version": "2023-06-01"
+      },
+      payload: {
+        model: "claude-sonnet-4-6",
+        max_tokens: 16,
+        metadata: {
+          user_id: JSON.stringify({
+            device_id: "device-test",
+            account_uuid: "",
+            session_id: "631bbd58-2580-4603-917c-333d3f9ddab8"
+          })
+        },
+        messages: [{ role: "user", content: "Reply with exactly OK" }]
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    const cloudCodeCall = fetchMock.mock.calls.find(([, init]) => {
+      const body = init?.body;
+      return typeof body === "string" && body.includes("\"userAgent\"");
+    });
+    expect(cloudCodeCall).toBeDefined();
+    const body = JSON.parse(cloudCodeCall?.[1]?.body as string);
+    expect(body.userAgent).toMatch(/^antigravity\/\d+\.\d+\.\d+ windows\/amd64$/);
+    expect(body.request.sessionId).toBe("631bbd58-2580-4603-917c-333d3f9ddab8");
+    expect(body.requestId).toMatch(/^agent\/antigravity\/631bbd58\/\d+$/);
+  });
+
+  it("maps Claude Code tool requests to Cloud Code function declarations", async () => {
+    const dir = makeDir();
+    const accountsDir = join(dir, "accounts");
+    mkdirSync(accountsDir, { recursive: true });
+    writeFileSync(
+      join(accountsDir, "account-a.json"),
+      JSON.stringify({
+        id: "cloud-a",
+        email: "a@example.test",
+        token: {
+          access_token: "token-a",
+          project_id: "project-a",
+          expiry_timestamp: Math.floor(Date.now() / 1000) + 3600
+        },
+        quota: {
+          models: [{ name: "claude-sonnet-4-6", percentage: 100 }]
+        }
+      }),
+      "utf8"
+    );
+
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            response: {
+              candidates: [
+                {
+                  content: {
+                    role: "model",
+                    parts: [{ functionCall: { id: "toolu_Read_123", name: "Read", args: { file_path: "package.json" } } }]
+                  },
+                  finishReason: "STOP"
+                }
+              ],
+              usageMetadata: {
+                promptTokenCount: 12,
+                candidatesTokenCount: 3,
+                totalTokenCount: 15
+              }
+            }
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      )
+    );
+
+    const app = buildServer(
+      config({
+        cloudCode: { enabled: true, accountsDir },
+        anthropic: { apiKey: "", apiKeys: [] }
+      })
+    );
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/messages",
+      payload: {
+        model: "claude-sonnet-4-6",
+        max_tokens: 16,
+        tools: [
+          {
+            name: "Read",
+            description: "Read a file",
+            input_schema: {
+              type: "object",
+              properties: { file_path: { type: "string" } },
+              required: ["file_path"]
+            }
+          }
+        ],
+        messages: [{ role: "user", content: "Read package.json" }]
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    const cloudCodeCall = fetchMock.mock.calls.find(([, init]) => {
+      const body = init?.body;
+      return typeof body === "string" && body.includes("\"request\"");
+    });
+    expect(cloudCodeCall).toBeDefined();
+    const headers = new Headers(cloudCodeCall?.[1]?.headers);
+    expect(headers.get("authorization")).toBe("Bearer token-a");
+    const forwardedBody = JSON.parse(cloudCodeCall?.[1]?.body as string);
+    expect(forwardedBody.request.tools[0].functionDeclarations[0]).toMatchObject({
+      name: "Read",
+      parameters: {
+        type: "object",
+        properties: { file_path: { type: "string" } },
+        required: ["file_path"]
+      }
+    });
+    expect(response.json()).toMatchObject({
+      content: [
+        {
+          type: "tool_use",
+          id: "toolu_Read_123",
+          name: "Read",
+          input: { file_path: "package.json" }
+        }
+      ],
+      stop_reason: "tool_use"
+    });
+  });
+
+  it("maps Claude tool results back to Cloud Code function responses", async () => {
+    const dir = makeDir();
+    const accountsDir = join(dir, "accounts");
+    mkdirSync(accountsDir, { recursive: true });
+    writeFileSync(
+      join(accountsDir, "account-a.json"),
+      JSON.stringify({
+        id: "cloud-a",
+        email: "a@example.test",
+        token: {
+          access_token: "token-a",
+          project_id: "project-a",
+          expiry_timestamp: Math.floor(Date.now() / 1000) + 3600
+        },
+        quota: {
+          models: [{ name: "claude-sonnet-4-6", percentage: 100 }]
+        }
+      }),
+      "utf8"
+    );
+
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            response: {
+              candidates: [{ content: { role: "model", parts: [{ text: "Done" }] }, finishReason: "STOP" }]
+            }
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      )
+    );
+    const app = buildServer(
+      config({
+        cloudCode: { enabled: true, accountsDir },
+        anthropic: { apiKey: "", apiKeys: [] }
+      })
+    );
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/messages",
+      payload: {
+        model: "claude-sonnet-4-6",
+        max_tokens: 16,
+        tools: [
+          {
+            name: "Read",
+            description: "Read a file",
+            input_schema: { type: "object" }
+          }
+        ],
+        messages: [
+          {
+            role: "assistant",
+            content: [{ type: "tool_use", id: "toolu_Read_123", name: "Read", input: { file_path: "package.json" } }]
+          },
+          {
+            role: "user",
+            content: [{ type: "tool_result", tool_use_id: "toolu_Read_123", content: "package content" }]
+          }
+        ]
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    const cloudCodeCall = fetchMock.mock.calls.find(([, init]) => {
+      const body = init?.body;
+      return typeof body === "string" && body.includes("\"request\"");
+    });
+    expect(cloudCodeCall).toBeDefined();
+    const forwardedBody = JSON.parse(cloudCodeCall?.[1]?.body as string);
+    expect(forwardedBody.request.contents).toEqual([
+      {
+        role: "model",
+        parts: [{ functionCall: { id: "toolu_Read_123", name: "Read", args: { file_path: "package.json" } } }]
+      },
+      {
+        role: "user",
+        parts: [
+          {
+            functionResponse: {
+              id: "toolu_Read_123",
+              name: "Read",
+              response: { result: "package content" }
+            }
+          }
+        ]
+      }
+    ]);
+  });
 });

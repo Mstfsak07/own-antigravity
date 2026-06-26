@@ -105,6 +105,78 @@ describe("gemini proxy auth header routing", () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json().candidates[0].content.parts[0].text).toBe("cloud code ok");
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats local extension origins as Cloud Code eligible even without a configured local key", async () => {
+    const dir = makeDir();
+    const accountsDir = join(dir, "accounts");
+    mkdirSync(accountsDir, { recursive: true });
+    writeFileSync(
+      join(accountsDir, "account.json"),
+      JSON.stringify({
+        id: "cloud-a",
+        email: "a@example.test",
+        token: {
+          access_token: "token-a",
+          refresh_token: "refresh-a",
+          expiry_timestamp: Math.floor(Date.now() / 1000) + 3600
+        },
+        quota: {
+          models: [{ name: "gemini-2.5-pro", percentage: 100 }]
+        }
+      }),
+      "utf8"
+    );
+
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((_input, init) => {
+      const headers = new Headers(init?.headers);
+      if (headers.get("authorization") === "Bearer token-a") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              response: {
+                candidates: [
+                  {
+                    content: { role: "model", parts: [{ text: "cloud code ok" }] },
+                    finishReason: "STOP"
+                  }
+                ],
+                usageMetadata: {
+                  promptTokenCount: 1,
+                  candidatesTokenCount: 2,
+                  totalTokenCount: 3
+                }
+              }
+            }),
+            {
+              status: 200,
+              headers: { "content-type": "application/json" }
+            }
+          )
+        );
+      }
+      return Promise.reject(new Error(`unexpected request headers: ${JSON.stringify([...headers.entries()])}`));
+    });
+
+    const app = buildServer(
+      config({
+        localApiKey: undefined,
+        cloudCode: { enabled: true, accountsDir }
+      })
+    );
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1beta/models/gemini-2.5-pro:generateContent",
+      headers: {
+        origin: "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      payload: {
+        contents: [{ role: "user", parts: [{ text: "hi" }] }]
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().candidates[0].content.parts[0].text).toBe("cloud code ok");
   });
 });

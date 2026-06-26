@@ -474,10 +474,12 @@ dialog::backdrop {
 }
 
 .traffic-detail-modal {
-  width: min(980px, calc(100vw - 32px));
+  box-sizing: border-box;
+  width: min(920px, calc(100vw - 24px));
   max-height: min(92vh, 900px);
   overflow: auto;
   padding-bottom: 24px;
+  overflow-x: hidden;
 }
 
 .modal-header {
@@ -485,6 +487,26 @@ dialog::backdrop {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+}
+
+.traffic-detail-modal .modal-header > div,
+.traffic-detail-meta,
+.traffic-detail-grid > div,
+.traffic-normalized,
+.traffic-normalized-block,
+.traffic-detail-block,
+.traffic-detail-block-header,
+.traffic-detail-block-header h3 {
+  min-width: 0;
+}
+
+.traffic-detail-modal h2 {
+  margin: 6px 0 0;
+  color: #0f172a;
+  font-size: 17px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .ghost-button {
@@ -574,6 +596,7 @@ dialog::backdrop {
 
 .traffic-detail-code {
   margin: 0;
+  min-width: 0;
   max-height: 320px;
   overflow: auto;
   padding: 16px;
@@ -585,6 +608,7 @@ dialog::backdrop {
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .traffic-detail-code.compact {
@@ -595,6 +619,34 @@ dialog::backdrop {
 .traffic-detail-code:empty::before {
   content: "Veri yok";
   color: #94a3b8;
+}
+
+@media (max-width: 900px) {
+  .traffic-detail-modal {
+    width: min(100vw - 16px, 760px);
+  }
+
+  .traffic-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .traffic-detail-modal {
+    width: calc(100vw - 12px);
+    max-height: calc(100vh - 12px);
+    padding: 12px;
+  }
+
+  .traffic-detail-grid,
+  .traffic-normalized-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .traffic-detail-code {
+    max-height: 240px;
+    padding: 12px;
+  }
 }
 
 .tabs {
@@ -1287,10 +1339,40 @@ h3 { font-size: 15px; }
 
 .status-badge.success { background: #00c48c; }
 .status-badge.error { background: #ff5b82; }
-.protocol-pill.gemini { background: #3b82f6; }
-.protocol-pill.claude { background: #f97316; }
-.protocol-pill.openai { background: #22c55e; }
-.protocol-pill.unknown { color: #6b7280; background: #e5e7eb; }
+.status-badge.warning { background: #f59e0b; }
+.protocol-pill.gemini,
+.protocol-text.gemini { background: #16a34a; color: #f0fdf4; }
+.protocol-pill.claude,
+.protocol-text.claude { background: #ea580c; color: #fff7ed; }
+.protocol-pill.openai,
+.protocol-text.openai { background: #0f766e; color: #ecfeff; }
+.protocol-pill.groq,
+.protocol-text.groq { background: #111827; color: #f9fafb; }
+.protocol-pill.cerebras,
+.protocol-text.cerebras { background: #b45309; color: #fffbeb; }
+.protocol-pill.ollama,
+.protocol-text.ollama { background: #0369a1; color: #f0f9ff; }
+.protocol-pill.mistral,
+.protocol-text.mistral { background: #b91c1c; color: #fef2f2; }
+.protocol-pill.cloudcode,
+.protocol-text.cloudcode { background: #7c3aed; color: #f5f3ff; }
+.protocol-pill.native,
+.protocol-text.native { background: #2563eb; color: #eff6ff; }
+.protocol-pill.zai,
+.protocol-text.zai { background: #be185d; color: #fdf2f8; }
+.protocol-pill.unknown,
+.protocol-text.unknown { color: #374151; background: #e5e7eb; }
+
+.protocol-text {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+}
 
 .quota-overview-card {
   margin-top: 16px;

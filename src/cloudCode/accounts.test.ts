@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CloudCodeAccountPool, loadCloudCodeAccounts, resolveCloudCodeModelForAccount } from "./accounts.js";
+import { CloudCodeAccountPool, cloudCodeRecoveryModelCandidates, loadCloudCodeAccounts, resolveCloudCodeModelForAccount } from "./accounts.js";
 import type { ProxyConfig } from "../types.js";
 
 const tempDirs: string[] = [];
@@ -62,6 +62,35 @@ function config(accountsDir: string, overrides: Partial<ProxyConfig["cloudCode"]
       apiKeys: [],
       baseUrl: "https://api.anthropic.com",
       version: "2023-06-01"
+    },
+    openai: {
+      apiKeys: [],
+      baseUrl: "https://api.openai.com",
+      defaultModel: "gpt-4.1-mini"
+    },
+    groq: {
+      enabled: false,
+      apiKeys: [],
+      baseUrl: "https://api.groq.com/openai",
+      defaultModel: "groq/openai/gpt-oss-20b"
+    },
+    cerebras: {
+      enabled: false,
+      apiKeys: [],
+      baseUrl: "https://api.cerebras.ai",
+      defaultModel: "cerebras/gpt-oss-120b"
+    },
+    ollama: {
+      enabled: false,
+      apiKeys: [],
+      baseUrl: "http://127.0.0.1:11434",
+      defaultModel: "ollama/llama3.2"
+    },
+    mistral: {
+      enabled: false,
+      apiKeys: [],
+      baseUrl: "https://api.mistral.ai",
+      defaultModel: "mistral/mistral-small-latest"
     },
     zai: {
       enabled: false,
@@ -236,6 +265,8 @@ describe("CloudCodeAccountPool", () => {
   });
 
   it("records upstream errors by quarantining the account without disabling it by default", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-01T00:00:00.000Z"));
     const dir = makeDir();
     const future = Math.floor(Date.now() / 1000) + 3600;
     writeAccount(dir, "limited", future);
@@ -252,6 +283,53 @@ describe("CloudCodeAccountPool", () => {
       disabledReason: "http_429"
     });
     expect(account.health.nextRetryAt).toBeTruthy();
+    expect(account.health.nextRetryAt).toBe("2026-05-02T00:00:00.000Z");
+    vi.useRealTimers();
+  });
+
+  it("uses a longer retry window for CloudCode upstream timeouts", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-01T00:00:00.000Z"));
+    const dir = makeDir();
+    const future = Math.floor(Date.now() / 1000) + 3600;
+    writeAccount(dir, "slow", future);
+
+    const cfg = config(dir);
+    const pool = new CloudCodeAccountPool(loadCloudCodeAccounts(cfg), cfg);
+    const account = pool.list()[0]!;
+
+    pool.reportStatusFailure(account.id, 504);
+
+    expect(account.disabled).toBe(false);
+    expect(account.health).toMatchObject({
+      healthy: false,
+      disabledReason: "timeout"
+    });
+    expect(account.health.nextRetryAt).toBe("2026-05-01T00:15:00.000Z");
+    vi.useRealTimers();
+  });
+
+  it("offers lower-tier Claude recovery models after Sonnet/Opus failures", () => {
+    expect(cloudCodeRecoveryModelCandidates("claude-sonnet-4-6")).toEqual(["claude-haiku-4-5"]);
+    expect(cloudCodeRecoveryModelCandidates("claude-opus-4-7")).toEqual(["claude-sonnet-4-6", "claude-haiku-4-5"]);
+  });
+
+  it("clears project ids through the update callback", async () => {
+    const dir = makeDir();
+    const future = Math.floor(Date.now() / 1000) + 3600;
+    writeAccount(dir, "project", future, "claude-opus-4-6-thinking");
+
+    const cfg = config(dir);
+    const updates: string[] = [];
+    const pool = new CloudCodeAccountPool(loadCloudCodeAccounts(cfg), cfg, (account) => {
+      updates.push(account.id);
+    });
+
+    const updated = pool.clearProjectId("project");
+
+    expect(updated?.projectId).toBeUndefined();
+    expect(pool.list()[0]?.projectId).toBeUndefined();
+    expect(updates).toEqual(["project"]);
   });
 
   it("can still auto-disable an account when preservation is explicitly disabled", async () => {
@@ -340,6 +418,80 @@ describe("CloudCodeAccountPool", () => {
     const selected = await pool.select("gemini-3.1-flash-lite");
 
     expect(selected?.id).toBe("second");
+  });
+
+  it("restricts flash-image selection to project-bound accounts when any are available", async () => {
+    const dir = makeDir();
+    const future = Math.floor(Date.now() / 1000) + 3600;
+    writeAccount(dir, "projectless", future, "gemini-3.1-flash-image");
+    writeAccount(dir, "project-bound", future, "gemini-3.1-flash-image");
+
+    const cfg = config(dir);
+    const pool = new CloudCodeAccountPool(loadCloudCodeAccounts(cfg), cfg);
+    const projectless = pool.list().find((account) => account.id === "projectless")!;
+    const projectBound = pool.list().find((account) => account.id === "project-bound")!;
+    projectless.projectId = undefined;
+    projectBound.projectId = "project-bound-id";
+
+    const selected = await pool.select("gemini-2.5-flash-image");
+
+    expect(selected?.id).toBe("project-bound");
+  });
+
+  it("prefers project-bound accounts for Claude models when any are available", async () => {
+    const dir = makeDir();
+    const future = Math.floor(Date.now() / 1000) + 3600;
+    writeAccount(dir, "plain", future, "claude-opus-4-6-thinking");
+    writeAccount(dir, "project", future, "claude-opus-4-6-thinking");
+
+    const cfg = config(dir);
+    const pool = new CloudCodeAccountPool(loadCloudCodeAccounts(cfg), cfg);
+    const plain = pool.list().find((account) => account.id === "plain")!;
+    const project = pool.list().find((account) => account.id === "project")!;
+    plain.projectId = undefined;
+    project.projectId = "project-1";
+    project.quotaModels[0].percentage = 80;
+    const selected = await pool.select("claude-opus-4-6-thinking");
+
+    expect(selected?.id).toBe("project");
+  });
+
+  it("prefers project-bound accounts for Gemini models when any are available", async () => {
+    const dir = makeDir();
+    const future = Math.floor(Date.now() / 1000) + 3600;
+    writeAccount(dir, "plain", future, "gemini-3.1-pro-high");
+    writeAccount(dir, "project", future, "gemini-3.1-pro-high");
+
+    const cfg = config(dir);
+    const pool = new CloudCodeAccountPool(loadCloudCodeAccounts(cfg), cfg);
+    const plain = pool.list().find((account) => account.id === "plain")!;
+    const project = pool.list().find((account) => account.id === "project")!;
+    plain.projectId = undefined;
+    project.projectId = "project-1";
+    project.quotaModels[0].percentage = 80;
+
+    const selected = await pool.select("gemini-3.1-pro-high");
+
+    expect(selected?.id).toBe("project");
+  });
+
+  it("does not fall back to projectless accounts while project-bound candidates are quarantined", async () => {
+    const dir = makeDir();
+    const future = Math.floor(Date.now() / 1000) + 3600;
+    writeAccount(dir, "plain", future, "claude-opus-4-6-thinking");
+    writeAccount(dir, "project", future, "claude-opus-4-6-thinking");
+
+    const cfg = config(dir);
+    const pool = new CloudCodeAccountPool(loadCloudCodeAccounts(cfg), cfg);
+    const plain = pool.list().find((account) => account.id === "plain")!;
+    const project = pool.list().find((account) => account.id === "project")!;
+    plain.projectId = undefined;
+    project.projectId = "project-1";
+    project.quotaModels[0].percentage = 80;
+
+    pool.reportFailure("project", "rate_limit");
+
+    await expect(pool.select("claude-opus-4-6-thinking")).resolves.toBeUndefined();
   });
 
   it("still prefers the healthier account after cooldown expires for the same model", async () => {

@@ -22,7 +22,7 @@ function isAllowedCorsOrigin(origin: string | undefined): boolean {
   return Boolean(
     origin &&
       (/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/i.test(origin) ||
-        /^chrome-extension:\/\/[a-p]{32}$/i.test(origin))
+        /^chrome-extension:\/\//i.test(origin))
   );
 }
 
@@ -118,6 +118,45 @@ export function buildServer(config: ProxyConfig) {
         active: runtime.anthropicKeys.hasKeys(),
         keys: runtime.anthropicKeys.snapshot()
       },
+      openai: {
+        baseUrl: config.openai.baseUrl,
+        defaultModel: config.openai.defaultModel,
+        keyCount: runtime.openaiKeys.size(),
+        active: runtime.openaiKeys.hasKeys(),
+        keys: runtime.openaiKeys.snapshot()
+      },
+      groq: {
+        enabled: config.groq.enabled,
+        baseUrl: config.groq.baseUrl,
+        defaultModel: config.groq.defaultModel,
+        keyCount: runtime.groqKeys.size(),
+        active: config.groq.enabled && runtime.groqKeys.hasKeys(),
+        keys: runtime.groqKeys.snapshot()
+      },
+      cerebras: {
+        enabled: config.cerebras.enabled,
+        baseUrl: config.cerebras.baseUrl,
+        defaultModel: config.cerebras.defaultModel,
+        keyCount: runtime.cerebrasKeys.size(),
+        active: config.cerebras.enabled && runtime.cerebrasKeys.hasKeys(),
+        keys: runtime.cerebrasKeys.snapshot()
+      },
+      ollama: {
+        enabled: config.ollama.enabled,
+        baseUrl: config.ollama.baseUrl,
+        defaultModel: config.ollama.defaultModel,
+        keyCount: runtime.ollamaKeys.size(),
+        active: config.ollama.enabled,
+        keys: runtime.ollamaKeys.snapshot()
+      },
+      mistral: {
+        enabled: config.mistral.enabled,
+        baseUrl: config.mistral.baseUrl,
+        defaultModel: config.mistral.defaultModel,
+        keyCount: runtime.mistralKeys.size(),
+        active: config.mistral.enabled && runtime.mistralKeys.hasKeys(),
+        keys: runtime.mistralKeys.snapshot()
+      },
       zai: {
         enabled: config.zai.enabled,
         baseUrl: config.zai.baseUrl,
@@ -181,8 +220,12 @@ export function buildServer(config: ProxyConfig) {
     providers: {
       gemini: runtime.geminiKeys.hasKeys(),
       anthropic: runtime.anthropicKeys.hasKeys(),
-      cloudCode: runtime.cloudCodeAccounts.hasAccounts()
-      ,
+      openai: runtime.openaiKeys.hasKeys(),
+      groq: config.groq.enabled && runtime.groqKeys.hasKeys(),
+      cerebras: config.cerebras.enabled && runtime.cerebrasKeys.hasKeys(),
+      ollama: config.ollama.enabled,
+      mistral: config.mistral.enabled && runtime.mistralKeys.hasKeys(),
+      cloudCode: runtime.cloudCodeAccounts.hasAccounts(),
       zai: config.zai.enabled && runtime.zaiKeys.hasKeys()
     },
     ls: {
@@ -293,6 +336,11 @@ export function buildServer(config: ProxyConfig) {
     ls: lsHealth(),
     accounts: accountsHealth().accounts,
     modelAliases: config.modelAliases,
+    openai: config.openai,
+    groq: config.groq,
+    cerebras: config.cerebras,
+    ollama: config.ollama,
+    mistral: config.mistral,
     zai: config.zai,
     mcp: config.mcp
   }));
@@ -303,6 +351,21 @@ export function buildServer(config: ProxyConfig) {
       unhealthy: runtime.cloudCodeAccounts.unhealthyCount()
     })
   );
+
+  app.post("/admin/shutdown", async (_request, reply) => {
+    if (!config.localApiKey) {
+      return reply.status(404).send({
+        error: {
+          message: "Not found",
+          type: "not_found"
+        }
+      });
+    }
+    setTimeout(() => {
+      void app.close();
+    }, 50);
+    return { ok: true, shuttingDown: true };
+  });
 
   app.get("/v1/models", async () => ({
     object: "list",

@@ -11,6 +11,7 @@ import { callCloudCodeWithFailover } from "./cloudCodeFailover.js";
 import { resolveCloudCodeModelForAccount } from "../cloudCode/accounts.js";
 import { tryNativeLs } from "./native.js";
 import { resolveRequestUserAgent } from "../requestUserAgent.js";
+import { optimizeGeminiRequest, readResponseCache, writeResponseCache } from "../tokenPolicy.js";
 
 type GeminiRouteParams = {
   modelAndAction: string;
@@ -21,6 +22,14 @@ function bearerToken(value: string | undefined): string | undefined {
     return undefined;
   }
   return value.replace(/^Bearer\s+/i, "");
+}
+
+function isAllowedLocalOrigin(origin: string | undefined): boolean {
+  return Boolean(
+    origin &&
+      (/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/i.test(origin) ||
+        /^chrome-extension:\/\/[a-p]{32}$/i.test(origin))
+  );
 }
 
 function providerKeyFromRequest(runtime: Runtime, request: FastifyRequest): string | undefined {
@@ -38,6 +47,9 @@ function isLocalGeminiRequest(runtime: Runtime, request: FastifyRequest): boolea
   const query = request.query as Record<string, string | undefined>;
   const headerKey = request.headers["x-goog-api-key"]?.toString();
   const authKey = bearerToken(request.headers.authorization);
+  if (!runtime.config.localApiKey) {
+    return isAllowedLocalOrigin(request.headers.origin?.toString());
+  }
   return Boolean(
     runtime.config.localApiKey &&
       (query.key === runtime.config.localApiKey ||
@@ -74,6 +86,27 @@ function buildGeminiUrl(runtime: Runtime, version: "v1" | "v1beta", modelAndActi
       }
     } else {
       url.searchParams.set(key, value);
+    }
+  }
+
+  url.searchParams.set("key", key);
+  return url;
+}
+
+function buildGeminiUrlFromResolved(runtime: Runtime, version: "v1" | "v1beta", modelAndAction: string, request: FastifyRequest, key: string): URL {
+  const url = new URL(`${runtime.config.gemini.baseUrl}/${version}/models/${modelAndAction}`);
+  const query = request.query as Record<string, string | string[] | undefined>;
+
+  for (const [queryKey, value] of Object.entries(query)) {
+    if (queryKey === "key" || value === undefined) {
+      continue;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        url.searchParams.append(queryKey, item);
+      }
+    } else {
+      url.searchParams.set(queryKey, value);
     }
   }
 
@@ -270,7 +303,8 @@ async function tryCloudCodeGemini(
   request: FastifyRequest<{ Params: GeminiRouteParams }>,
   reply: FastifyReply,
   runtime: Runtime,
-  model: string
+  model: string,
+  requestBody: unknown
 ): Promise<boolean> {
   if (!isLocalGeminiRequest(runtime, request) || !runtime.cloudCodeAccounts.hasAccounts()) {
     return false;
@@ -279,6 +313,13 @@ async function tryCloudCodeGemini(
   const isStream = request.params.modelAndAction.includes("streamGenerateContent");
   const method = isStream ? "streamGenerateContent" : "generateContent";
   const startedAt = Date.now();
+  if (!isStream) {
+    const cached = readResponseCache(`gemini:cloudcode:${runtime.config.dataDir}`, model, requestBody);
+    if (cached) {
+      reply.send(cached);
+      return true;
+    }
+  }
   const relay = await callCloudCodeWithFailover({
     runtime,
     model,
@@ -286,7 +327,7 @@ async function tryCloudCodeGemini(
     maxAttempts: 4,
     buildBody: (account, candidateModel) =>
       cloudCodeGeminiBody(
-        request.body,
+        requestBody,
         resolveCloudCodeModelForAccount(account, candidateModel),
         account.projectId,
         runtime.config.cloudCode.userAgent
@@ -307,7 +348,7 @@ async function tryCloudCodeGemini(
   }
 
   const account = relay.account;
-  const body = relay.requestBody;
+  const cloudCodeBody = relay.requestBody;
   const upstream = relay.response;
 
   if (!upstream.ok) {
@@ -322,7 +363,7 @@ async function tryCloudCodeGemini(
       statusCode: upstream.status,
       startedAt,
       tokens: usageFromGeminiResponse(data),
-      requestBody: body,
+      requestBody: cloudCodeBody,
       responseBody: data,
       errorBody: upstream.ok ? undefined : data
     });
@@ -331,23 +372,6 @@ async function tryCloudCodeGemini(
   }
 
   if (isStream) {
-    const metricsPromise = upstream.clone().json().catch(async () => ({ error: await upstream.clone().text() }));
-    void metricsPromise.then((data) => {
-      runtime.metrics.recordProviderTraffic({
-        actor: accountLabel(account),
-        method: request.method,
-        route: request.url,
-        provider: "cloudCode",
-        model,
-        account: accountLabel(account),
-        statusCode: upstream.status,
-        startedAt,
-        tokens: data ? usageFromGeminiResponse(data) : estimateTrafficTokens(body, { stream: true }),
-        requestBody: body,
-        responseBody: data,
-        errorBody: undefined
-      });
-    });
     reply.header("content-type", "text/event-stream; charset=utf-8");
     reply.header("cache-control", "no-cache");
     reply.header("connection", "keep-alive");
@@ -366,11 +390,12 @@ async function tryCloudCodeGemini(
     statusCode: upstream.status,
     startedAt,
     tokens: usageFromGeminiResponse(data),
-    requestBody: body,
+    requestBody: cloudCodeBody,
     responseBody: data,
     errorBody: upstream.ok ? undefined : data
   });
 
+  writeResponseCache(`gemini:cloudcode:${runtime.config.dataDir}`, model, requestBody, geminiData);
   reply.send(geminiData);
   return true;
 }
@@ -384,26 +409,35 @@ async function proxyGemini(
   const separatorIndex = request.params.modelAndAction.lastIndexOf(":");
   const requestedModel =
     separatorIndex === -1 ? request.params.modelAndAction : request.params.modelAndAction.slice(0, separatorIndex);
-  const resolvedModel = runtime.resolveModel(requestedModel);
+  const action = separatorIndex === -1 ? "" : request.params.modelAndAction.slice(separatorIndex);
+  const policy = optimizeGeminiRequest(request.body, runtime.resolveModel(requestedModel));
+  const resolvedModel = policy.model;
+  const requestBody = policy.body;
   const handled = await tryNativeLs(
     runtime,
     reply,
     request,
     resolvedModel,
     "gemini",
-    request.body,
+    requestBody,
     request.params.modelAndAction.includes("stream")
   );
   if (handled) {
     return;
   }
-  if (await tryCloudCodeGemini(request, reply, runtime, resolvedModel)) {
+  if (await tryCloudCodeGemini(request, reply, runtime, resolvedModel, requestBody)) {
     return;
   }
   const lease = runtime.geminiKeys.next();
   const key = lease?.value ?? requireKey(providerKeyFromRequest(runtime, request), "Gemini");
-  const upstreamUrl = buildGeminiUrl(runtime, version, request.params.modelAndAction, request, key);
+  const upstreamUrl = buildGeminiUrlFromResolved(runtime, version, `${resolvedModel}${action}`, request, key);
   const startedAt = Date.now();
+  if (!request.params.modelAndAction.includes("stream")) {
+    const cached = readResponseCache(`gemini:official:${runtime.config.dataDir}:${runtime.config.gemini.baseUrl}`, resolvedModel, requestBody);
+    if (cached) {
+      return reply.send(cached);
+    }
+  }
   let response: Response;
   try {
     runtime.metrics.setActiveProvider("gemini");
@@ -412,7 +446,7 @@ async function proxyGemini(
       headers: filteredRequestHeaders(request.headers, {
         "content-type": "application/json"
       }),
-      body: jsonBody(request.body)
+      body: jsonBody(requestBody)
     });
   } catch (error) {
     if (lease) {
@@ -442,12 +476,15 @@ async function proxyGemini(
     account: lease ? "Gemini API key" : undefined,
     statusCode: response.status,
     startedAt,
-    tokens: responseData ? usageFromGeminiResponse(responseData) : estimateTrafficTokens(request.body, responseData),
-    requestBody: request.body,
+    tokens: responseData ? usageFromGeminiResponse(responseData) : estimateTrafficTokens(requestBody, responseData),
+    requestBody,
     responseBody: responseData,
     errorBody: response.ok ? undefined : responseData
   });
 
+  if (response.ok && responseData && !request.params.modelAndAction.includes("stream")) {
+    writeResponseCache(`gemini:official:${runtime.config.dataDir}:${runtime.config.gemini.baseUrl}`, resolvedModel, requestBody, responseData);
+  }
   await pipeUpstream(reply, response);
 }
 

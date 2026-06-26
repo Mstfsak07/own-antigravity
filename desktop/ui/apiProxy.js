@@ -16,8 +16,29 @@ const ZAI_MODEL_OPTIONS = [
   "glm-4.1v-thinking"
 ];
 
+const GROQ_MODEL_OPTIONS = [
+  "groq/openai/gpt-oss-20b",
+  "groq/openai/gpt-oss-120b"
+];
+
+const CEREBRAS_MODEL_OPTIONS = [
+  "cerebras/gpt-oss-120b"
+];
+
+const OLLAMA_MODEL_OPTIONS = [
+  "ollama/llama3.2"
+];
+
+const MISTRAL_MODEL_OPTIONS = [
+  "mistral/mistral-small-latest"
+];
+
 const ROUTING_TARGET_OPTIONS = [
   ...GEMINI_MODEL_OPTIONS,
+  ...GROQ_MODEL_OPTIONS,
+  ...CEREBRAS_MODEL_OPTIONS,
+  ...OLLAMA_MODEL_OPTIONS,
+  ...MISTRAL_MODEL_OPTIONS,
   ...ZAI_MODEL_OPTIONS,
   "claude-haiku-4-5",
   "claude-sonnet-4-5"
@@ -244,6 +265,11 @@ export function renderApiProxy({ gatewayConfig, adminStatus, onRefresh, onStartS
   const lsConfig = gatewayConfig?.ls || {};
   const cloudConfig = gatewayConfig?.cloudCode || {};
   const geminiConfig = gatewayConfig?.gemini || {};
+  const openaiConfig = gatewayConfig?.openai || {};
+  const groqConfig = gatewayConfig?.groq || {};
+  const cerebrasConfig = gatewayConfig?.cerebras || {};
+  const ollamaConfig = gatewayConfig?.ollama || {};
+  const mistralConfig = gatewayConfig?.mistral || {};
   const zaiConfig = gatewayConfig?.zai || {};
   const mcpConfig = gatewayConfig?.mcp || {};
   const authEnabled = Boolean(apiKey);
@@ -279,6 +305,21 @@ export function renderApiProxy({ gatewayConfig, adminStatus, onRefresh, onStartS
     attrs: { autocomplete: "off", spellcheck: "false" },
     value: (cloudConfig.baseUrls || []).join("\n")
   });
+  const openaiApiKeyInput = el("input", { attrs: { value: openaiConfig.apiKey || "", autocomplete: "off" } });
+  const openaiBaseUrlInput = el("input", { attrs: { value: openaiConfig.baseUrl || "https://api.openai.com", autocomplete: "off" } });
+  const openaiModelInput = el("input", { attrs: { value: openaiConfig.defaultModel || "gpt-4.1-mini", autocomplete: "off" } });
+  const groqApiKeyInput = el("input", { attrs: { value: groqConfig.apiKey || "", autocomplete: "off" } });
+  const groqBaseUrlInput = el("input", { attrs: { value: groqConfig.baseUrl || "https://api.groq.com/openai", autocomplete: "off" } });
+  const groqModelInput = el("input", { attrs: { value: groqConfig.defaultModel || "groq/openai/gpt-oss-20b", autocomplete: "off", list: "groq-model-options" } });
+  const cerebrasApiKeyInput = el("input", { attrs: { value: cerebrasConfig.apiKey || "", autocomplete: "off" } });
+  const cerebrasBaseUrlInput = el("input", { attrs: { value: cerebrasConfig.baseUrl || "https://api.cerebras.ai", autocomplete: "off" } });
+  const cerebrasModelInput = el("input", { attrs: { value: cerebrasConfig.defaultModel || "cerebras/gpt-oss-120b", autocomplete: "off", list: "cerebras-model-options" } });
+  const ollamaApiKeyInput = el("input", { attrs: { value: ollamaConfig.apiKey || "ollama", autocomplete: "off" } });
+  const ollamaBaseUrlInput = el("input", { attrs: { value: ollamaConfig.baseUrl || "http://127.0.0.1:11434", autocomplete: "off" } });
+  const ollamaModelInput = el("input", { attrs: { value: ollamaConfig.defaultModel || "ollama/llama3.2", autocomplete: "off", list: "ollama-model-options" } });
+  const mistralApiKeyInput = el("input", { attrs: { value: mistralConfig.apiKey || "", autocomplete: "off" } });
+  const mistralBaseUrlInput = el("input", { attrs: { value: mistralConfig.baseUrl || "https://api.mistral.ai", autocomplete: "off" } });
+  const mistralModelInput = el("input", { attrs: { value: mistralConfig.defaultModel || "mistral/mistral-small-latest", autocomplete: "off", list: "mistral-model-options" } });
   const zaiApiKeyInput = el("input", { attrs: { value: zaiConfig.apiKey || "", autocomplete: "off" } });
   const zaiBaseUrlInput = el("input", { attrs: { value: zaiConfig.baseUrl || "https://api.z.ai/api/paas/v4", autocomplete: "off" } });
   const zaiModelSelect = el("select");
@@ -314,6 +355,10 @@ export function renderApiProxy({ gatewayConfig, adminStatus, onRefresh, onStartS
   const preserveAvailabilityToggle = toggle(Boolean(cloudConfig.preserveAvailabilityOnError ?? true));
   const projectHeaderToggle = toggle(Boolean(cloudConfig.sendUserProjectHeader));
   const oauthToggle = toggle(Boolean(cloudConfig.oauthEnabled));
+  const groqEnabledToggle = toggle(Boolean(groqConfig.enabled));
+  const cerebrasEnabledToggle = toggle(Boolean(cerebrasConfig.enabled));
+  const ollamaEnabledToggle = toggle(Boolean(ollamaConfig.enabled));
+  const mistralEnabledToggle = toggle(Boolean(mistralConfig.enabled));
   const zaiEnabledToggle = toggle(Boolean(zaiConfig.enabled));
   const mcpEnabledToggle = toggle(Boolean(mcpConfig.enabled));
   const mcpExposeToggle = toggle(Boolean(mcpConfig.exposeViaProxy ?? true));
@@ -330,6 +375,40 @@ export function renderApiProxy({ gatewayConfig, adminStatus, onRefresh, onStartS
         gemini: {
           baseUrl: geminiBaseUrlInput.value.trim(),
           defaultModel: geminiModelSelect.value
+        },
+        openai: {
+          apiKey: openaiApiKeyInput.value.trim(),
+          apiKeys: openaiApiKeyInput.value.trim() ? [openaiApiKeyInput.value.trim()] : [],
+          baseUrl: openaiBaseUrlInput.value.trim(),
+          defaultModel: openaiModelInput.value.trim() || "gpt-4.1-mini"
+        },
+        groq: {
+          enabled: groqEnabledToggle.input.checked,
+          apiKey: groqApiKeyInput.value.trim(),
+          apiKeys: groqApiKeyInput.value.trim() ? [groqApiKeyInput.value.trim()] : [],
+          baseUrl: groqBaseUrlInput.value.trim(),
+          defaultModel: groqModelInput.value.trim() || "groq/openai/gpt-oss-20b"
+        },
+        cerebras: {
+          enabled: cerebrasEnabledToggle.input.checked,
+          apiKey: cerebrasApiKeyInput.value.trim(),
+          apiKeys: cerebrasApiKeyInput.value.trim() ? [cerebrasApiKeyInput.value.trim()] : [],
+          baseUrl: cerebrasBaseUrlInput.value.trim(),
+          defaultModel: cerebrasModelInput.value.trim() || "cerebras/gpt-oss-120b"
+        },
+        ollama: {
+          enabled: ollamaEnabledToggle.input.checked,
+          apiKey: ollamaApiKeyInput.value.trim(),
+          apiKeys: ollamaApiKeyInput.value.trim() ? [ollamaApiKeyInput.value.trim()] : [],
+          baseUrl: ollamaBaseUrlInput.value.trim(),
+          defaultModel: ollamaModelInput.value.trim() || "ollama/llama3.2"
+        },
+        mistral: {
+          enabled: mistralEnabledToggle.input.checked,
+          apiKey: mistralApiKeyInput.value.trim(),
+          apiKeys: mistralApiKeyInput.value.trim() ? [mistralApiKeyInput.value.trim()] : [],
+          baseUrl: mistralBaseUrlInput.value.trim(),
+          defaultModel: mistralModelInput.value.trim() || "mistral/mistral-small-latest"
         },
         zai: {
           enabled: zaiEnabledToggle.input.checked,
@@ -613,7 +692,9 @@ export function renderApiProxy({ gatewayConfig, adminStatus, onRefresh, onStartS
       highlightTile("Gemini endpoint", geminiConfig.baseUrl || "unknown"),
       highlightTile("CloudCode accounts", `${adminStatus?.providers?.cloudCode?.accountCount ?? 0}`),
       highlightTile("Fallback", boolText(lsConfig.providerFallback)),
-      highlightTile("GLM", zaiEnabledToggle.input.checked ? zaiModelSelect.value : "disabled")
+      highlightTile("GLM", zaiEnabledToggle.input.checked ? zaiModelSelect.value : "disabled"),
+      highlightTile("Groq", groqEnabledToggle.input.checked ? groqModelInput.value : "disabled"),
+      highlightTile("Ollama", ollamaEnabledToggle.input.checked ? ollamaModelInput.value : "disabled")
     ]),
     el("div", { className: "proxy-grid" }, [
       field("Dinleme Portu", portInput, "Varsayılan 8046, değişiklik için yeniden başlatma gerekir"),
@@ -715,6 +796,65 @@ export function renderApiProxy({ gatewayConfig, adminStatus, onRefresh, onStartS
       el("div", { className: "proxy-placeholder" }, [
         el("strong", { text: "GLM sağlayıcısı için kalıcı config alanları aktif." }),
         el("p", { text: `Durum: ${boolText(zaiEnabledToggle.input.checked)} · Hedef model: ${zaiModelSelect.value}` })
+      ])
+    ]),
+    details("OpenAI ve Uyumlu Sağlayıcılar", openaiModelInput.value || "gpt-4.1-mini", [
+      el("div", { className: "proxy-grid" }, [
+        field("OpenAI API key", openaiApiKeyInput, "Doğrudan OpenAI route'ları için", "full"),
+        field("OpenAI base URL", openaiBaseUrlInput, "Varsayılan: https://api.openai.com", "full"),
+        field("OpenAI varsayılan model", openaiModelInput, "gpt-* ve chatgpt-* hedefleri için")
+      ]),
+      el("div", { className: "proxy-placeholder" }, [
+        el("strong", { text: "Bu bölüm ücretli OpenAI API çağrılarını yönetir." }),
+        el("p", { text: `Varsayılan model: ${openaiModelInput.value || "gpt-4.1-mini"}` })
+      ])
+    ]),
+    details("Groq Sağlayıcısı", groqEnabledToggle.input.checked ? groqModelInput.value : "Devre dışı", [
+      el("div", { className: "proxy-grid" }, [
+        field("Groq enabled", groqEnabledToggle.node, "Resmi free tier / OpenAI-compatible Groq backend"),
+        field("Groq API key", groqApiKeyInput, "console.groq.com anahtarı", "full"),
+        field("Groq base URL", groqBaseUrlInput, "Varsayılan: https://api.groq.com/openai", "full"),
+        field("Groq varsayılan model", el("div", {}, [groqModelInput, el("datalist", { attrs: { id: "groq-model-options" } }, GROQ_MODEL_OPTIONS.map((model) => el("option", { attrs: { value: model } }))) ]), "Alias target için `groq/...` kullan", "full")
+      ]),
+      el("div", { className: "proxy-placeholder" }, [
+        el("strong", { text: "Groq hedefleri `groq/` prefix'i ile route edilir." }),
+        el("p", { text: `Durum: ${boolText(groqEnabledToggle.input.checked)} · Hedef model: ${groqModelInput.value || "groq/openai/gpt-oss-20b"}` })
+      ])
+    ]),
+    details("Cerebras Sağlayıcısı", cerebrasEnabledToggle.input.checked ? cerebrasModelInput.value : "Devre dışı", [
+      el("div", { className: "proxy-grid" }, [
+        field("Cerebras enabled", cerebrasEnabledToggle.node, "OpenAI-compatible Cerebras inference"),
+        field("Cerebras API key", cerebrasApiKeyInput, "api.cerebras.ai anahtarı", "full"),
+        field("Cerebras base URL", cerebrasBaseUrlInput, "Varsayılan: https://api.cerebras.ai", "full"),
+        field("Cerebras varsayılan model", el("div", {}, [cerebrasModelInput, el("datalist", { attrs: { id: "cerebras-model-options" } }, CEREBRAS_MODEL_OPTIONS.map((model) => el("option", { attrs: { value: model } }))) ]), "Alias target için `cerebras/...` kullan", "full")
+      ]),
+      el("div", { className: "proxy-placeholder" }, [
+        el("strong", { text: "Cerebras hedefleri `cerebras/` prefix'i ile route edilir." }),
+        el("p", { text: `Durum: ${boolText(cerebrasEnabledToggle.input.checked)} · Hedef model: ${cerebrasModelInput.value || "cerebras/gpt-oss-120b"}` })
+      ])
+    ]),
+    details("Ollama Yerel Sağlayıcısı", ollamaEnabledToggle.input.checked ? ollamaModelInput.value : "Devre dışı", [
+      el("div", { className: "proxy-grid" }, [
+        field("Ollama enabled", ollamaEnabledToggle.node, "Yerel OpenAI-compatible Ollama backend"),
+        field("Ollama API key", ollamaApiKeyInput, "Genelde `ollama`, çoğu kurulumda zorunlu değil", "full"),
+        field("Ollama base URL", ollamaBaseUrlInput, "Varsayılan: http://127.0.0.1:11434", "full"),
+        field("Ollama varsayılan model", el("div", {}, [ollamaModelInput, el("datalist", { attrs: { id: "ollama-model-options" } }, OLLAMA_MODEL_OPTIONS.map((model) => el("option", { attrs: { value: model } }))) ]), "Alias target için `ollama/...` kullan", "full")
+      ]),
+      el("div", { className: "proxy-placeholder" }, [
+        el("strong", { text: "Yerel model çalıştırmak için Ollama servisinin açık olması gerekir." }),
+        el("p", { text: `Durum: ${boolText(ollamaEnabledToggle.input.checked)} · Hedef model: ${ollamaModelInput.value || "ollama/llama3.2"}` })
+      ])
+    ]),
+    details("Mistral Sağlayıcısı", mistralEnabledToggle.input.checked ? mistralModelInput.value : "Devre dışı", [
+      el("div", { className: "proxy-grid" }, [
+        field("Mistral enabled", mistralEnabledToggle.node, "Mistral API / Experiment plan"),
+        field("Mistral API key", mistralApiKeyInput, "console.mistral.ai / Studio anahtarı", "full"),
+        field("Mistral base URL", mistralBaseUrlInput, "Varsayılan: https://api.mistral.ai", "full"),
+        field("Mistral varsayılan model", el("div", {}, [mistralModelInput, el("datalist", { attrs: { id: "mistral-model-options" } }, MISTRAL_MODEL_OPTIONS.map((model) => el("option", { attrs: { value: model } }))) ]), "Alias target için `mistral/...` kullan", "full")
+      ]),
+      el("div", { className: "proxy-placeholder" }, [
+        el("strong", { text: "Mistral hedefleri `mistral/` prefix'i ile route edilir." }),
+        el("p", { text: `Durum: ${boolText(mistralEnabledToggle.input.checked)} · Hedef model: ${mistralModelInput.value || "mistral/mistral-small-latest"}` })
       ])
     ]),
     details("MCP Sunucuları (yerel proxy üzerinden)", mcpEnabledToggle.input.checked ? `${(mcpConfig.servers || []).length} kayıt` : "Devre dışı", [

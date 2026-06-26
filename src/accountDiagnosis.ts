@@ -38,9 +38,9 @@ function isExpired(account: StoredAccount, now = Date.now()): boolean {
 function oauthRecoverySteps(account: StoredAccount): string[] {
   const email = account.email || "hesap e-postası";
   return [
-    `Terminalde \`gcloud auth revoke ${email}\` çalıştır.`,
-    "Ardından `gcloud auth login --update-adc` ile hesabı yeniden yetkilendir.",
-    "Uygulamada hesabı kaldırıp yeniden OAuth ile ekle."
+    "Uygulamada hesabı kaldırıp yeniden OAuth ile ekle.",
+    `OAuth ekranında aynı hesabı seç: ${email}.`,
+    `Bu hesap \`gcloud auth list\` içinde görünüyorsa isteğe bağlı olarak \`gcloud auth revoke ${email}\` çalıştır.`
   ];
 }
 

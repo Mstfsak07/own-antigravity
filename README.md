@@ -268,6 +268,26 @@ If a `claude` or `gemini` run fails, the automation runner tries to recover befo
 - retry on the alternate provider and continue the project task there
 - if every attempt fails, record unresolved recovery items and keep them available to later tasks
 
+Reusable orchestrator bootstrap:
+
+```powershell
+node dist/cli.js automate:init --workspace C:\path\to\your-project --name MyProject
+```
+
+This creates a project-local `.own-ag/orchestrator/` directory with:
+
+- `plan.json`: reusable phase/task plan
+- `PROJECT_BRIEF.md`: stable project context
+- `BACKLOG.md`: active work queue for future runs
+- `RUNBOOK.md`: operating notes
+- `run.ps1`: one-command PowerShell launcher for the orchestrator
+
+Then start the loop from the target workspace:
+
+```powershell
+.\.own-ag\orchestrator\run.ps1
+```
+
 Desktop manager:
 
 ```powershell
@@ -299,9 +319,10 @@ Packaging uses Electron Builder:
 ```powershell
 npm run desktop:pack
 npm run desktop:dist
+npm run desktop:portable
 ```
 
-`desktop:pack` creates an unpacked app under `release/`. `desktop:dist` targets Windows portable and NSIS installer outputs. If NSIS is unavailable or signing is not configured, use the portable artifact as the fallback desktop package.
+`desktop:pack` creates an unpacked app under `release/`. `desktop:dist` now builds the Windows NSIS installer only, cleans stale portable `.exe` leftovers first, and keeps the temp-extracted portable app out of the default release path. Use `desktop:portable` only when you explicitly need a portable build on Windows.
 
 PowerShell helpers:
 
@@ -314,6 +335,8 @@ PowerShell helpers:
 ## Automation Plans
 
 Automation plans are JSON files that describe phases and tasks. Each task is assigned to either `claude` or `gemini`, with an optional explicit model.
+
+You can also define `globalContextFiles` at the plan root. Those files are injected into every task prompt, which is useful for persistent project state like a brief, backlog, or runbook.
 
 Example:
 

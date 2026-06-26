@@ -25,6 +25,11 @@ export function modelCatalog(config: ProxyConfig) {
       owned_by: "google"
     },
     {
+      id: "claude-sonnet-4-6",
+      object: "model",
+      owned_by: "anthropic"
+    },
+    {
       id: "claude-sonnet-4-5",
       object: "model",
       owned_by: "anthropic"
@@ -43,6 +48,26 @@ export function modelCatalog(config: ProxyConfig) {
       id: config.zai.defaultModel,
       object: "model",
       owned_by: "zai"
+    },
+    {
+      id: config.groq.defaultModel,
+      object: "model",
+      owned_by: "groq"
+    },
+    {
+      id: config.cerebras.defaultModel,
+      object: "model",
+      owned_by: "cerebras"
+    },
+    {
+      id: config.ollama.defaultModel,
+      object: "model",
+      owned_by: "ollama"
+    },
+    {
+      id: config.mistral.defaultModel,
+      object: "model",
+      owned_by: "mistral"
     },
     {
       id: "glm-4.6",
@@ -64,6 +89,14 @@ export function modelCatalog(config: ProxyConfig) {
         ? "anthropic"
         : id.startsWith("glm")
           ? "zai"
+          : String(config.modelAliases[id]).startsWith("groq/")
+            ? "groq"
+            : String(config.modelAliases[id]).startsWith("cerebras/")
+              ? "cerebras"
+              : String(config.modelAliases[id]).startsWith("ollama/")
+                ? "ollama"
+                : String(config.modelAliases[id]).startsWith("mistral/")
+                  ? "mistral"
           : "google",
     aliasTarget: config.modelAliases[id],
     fallbackInjected: true

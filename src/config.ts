@@ -77,6 +77,50 @@ const ConfigSchema = z
         version: z.string().optional()
       })
       .optional(),
+    openai: z
+      .object({
+        apiKey: z.string().optional(),
+        apiKeys: z.array(z.string()).optional(),
+        baseUrl: z.string().optional(),
+        defaultModel: z.string().optional()
+      })
+      .optional(),
+    groq: z
+      .object({
+        enabled: z.boolean().optional(),
+        apiKey: z.string().optional(),
+        apiKeys: z.array(z.string()).optional(),
+        baseUrl: z.string().optional(),
+        defaultModel: z.string().optional()
+      })
+      .optional(),
+    cerebras: z
+      .object({
+        enabled: z.boolean().optional(),
+        apiKey: z.string().optional(),
+        apiKeys: z.array(z.string()).optional(),
+        baseUrl: z.string().optional(),
+        defaultModel: z.string().optional()
+      })
+      .optional(),
+    ollama: z
+      .object({
+        enabled: z.boolean().optional(),
+        apiKey: z.string().optional(),
+        apiKeys: z.array(z.string()).optional(),
+        baseUrl: z.string().optional(),
+        defaultModel: z.string().optional()
+      })
+      .optional(),
+    mistral: z
+      .object({
+        enabled: z.boolean().optional(),
+        apiKey: z.string().optional(),
+        apiKeys: z.array(z.string()).optional(),
+        baseUrl: z.string().optional(),
+        defaultModel: z.string().optional()
+      })
+      .optional(),
     zai: z
       .object({
         enabled: z.boolean().optional(),
@@ -111,6 +155,40 @@ const ConfigSchema = z
   .optional();
 
 export const configPath = join(homedir(), ".own-antigravity", "config.json");
+
+export const defaultModelAliases: Record<string, string> = {
+  "gpt-4o": "gemini-2.5-pro",
+  "gpt-4.1": "gemini-2.5-pro",
+  "gpt-5": "gemini-2.5-pro",
+  "gemini-latest": "gemini-2.5-pro",
+  "gemini-pro-latest": "gemini-2.5-pro",
+  "gemini-flash-latest": "gemini-2.5-flash",
+  "gemini-2.5-pro-latest": "gemini-2.5-pro",
+  "gemini-2.5-flash-latest": "gemini-2.5-flash",
+  "gemini-2.5-flash-lite-latest": "gemini-2.5-flash-lite",
+  "gemini-2.5-flash-image-latest": "gemini-2.5-flash-image",
+  claude: "claude-sonnet-4-6",
+  "claude-sonnet": "claude-sonnet-4-6",
+  "claude-sonnet-latest": "claude-sonnet-4-6",
+  "claude-sonnet-4": "claude-sonnet-4-6",
+  "claude-sonnet-4-5": "claude-sonnet-4-6",
+  "claude-3-7-sonnet": "claude-sonnet-4-6",
+  "claude-3-7-sonnet-latest": "claude-sonnet-4-6",
+  "claude-3-7-sonnet-20250219": "claude-sonnet-4-6",
+  "claude-3-5-sonnet": "claude-sonnet-4-6",
+  "claude-3.5-sonnet": "claude-sonnet-4-6",
+  "claude-3-5-sonnet-latest": "claude-sonnet-4-6",
+  "claude-3-5-sonnet-20241022": "claude-sonnet-4-6",
+  "claude-3-5-sonnet-20240620": "claude-sonnet-4-6",
+  "claude-haiku": "claude-haiku-4-5",
+  "claude-haiku-latest": "claude-haiku-4-5",
+  "claude-haiku-4": "claude-haiku-4-5",
+  "claude-haiku-4-5": "claude-haiku-4-5",
+  "claude-3-5-haiku": "claude-haiku-4-5",
+  "claude-3.5-haiku": "claude-haiku-4-5",
+  "claude-3-5-haiku-latest": "claude-haiku-4-5",
+  "claude-3-5-haiku-20241022": "claude-haiku-4-5"
+};
 
 export function readJsonConfig(): z.infer<typeof ConfigSchema> {
   if (!existsSync(configPath)) {
@@ -180,6 +258,21 @@ export function loadConfig(overrides: Partial<ProxyConfig> = {}): ProxyConfig {
   const anthropicApiKey =
     process.env.OWN_AG_ANTHROPIC_API_KEY ??
     fileConfig?.anthropic?.apiKey;
+  const openaiApiKey =
+    process.env.OWN_AG_OPENAI_API_KEY ??
+    fileConfig?.openai?.apiKey;
+  const groqApiKey =
+    process.env.OWN_AG_GROQ_API_KEY ??
+    fileConfig?.groq?.apiKey;
+  const cerebrasApiKey =
+    process.env.OWN_AG_CEREBRAS_API_KEY ??
+    fileConfig?.cerebras?.apiKey;
+  const ollamaApiKey =
+    process.env.OWN_AG_OLLAMA_API_KEY ??
+    fileConfig?.ollama?.apiKey;
+  const mistralApiKey =
+    process.env.OWN_AG_MISTRAL_API_KEY ??
+    fileConfig?.mistral?.apiKey;
   const zaiApiKey =
     process.env.OWN_AG_ZAI_API_KEY ??
     fileConfig?.zai?.apiKey;
@@ -193,19 +286,7 @@ export function loadConfig(overrides: Partial<ProxyConfig> = {}): ProxyConfig {
       fileConfig?.dataDir ??
       join(homedir(), ".own-antigravity"),
     modelAliases: {
-      "gpt-4o": "gemini-2.5-pro",
-      "gpt-4.1": "gemini-2.5-pro",
-      "gpt-5": "gemini-2.5-pro",
-      "gemini-latest": "gemini-2.5-pro",
-      "gemini-pro-latest": "gemini-2.5-pro",
-      "gemini-flash-latest": "gemini-2.5-flash",
-      "gemini-2.5-pro-latest": "gemini-2.5-pro",
-      "gemini-2.5-flash-latest": "gemini-2.5-flash",
-      "gemini-2.5-flash-lite-latest": "gemini-2.5-flash-lite",
-      "gemini-2.5-flash-image-latest": "gemini-2.5-flash-image",
-      "claude-haiku": "claude-haiku-4-5",
-      "claude-haiku-4-5": "claude-haiku-4-5",
-      "claude-sonnet-4-5": "claude-sonnet-4-5",
+      ...defaultModelAliases,
       ...(fileConfig?.modelAliases ?? {})
     },
     ls: {
@@ -347,6 +428,97 @@ export function loadConfig(overrides: Partial<ProxyConfig> = {}): ProxyConfig {
         fileConfig?.anthropic?.version ??
         "2023-06-01"
     },
+    openai: {
+      apiKey: openaiApiKey,
+      apiKeys: uniqueValues([
+        ...envList("OWN_AG_OPENAI_API_KEYS"),
+        ...(fileConfig?.openai?.apiKeys ?? []),
+        openaiApiKey
+      ]),
+      baseUrl: cleanBaseUrl(
+        process.env.OPENAI_BASE_URL ??
+          process.env.OWN_AG_OPENAI_BASE_URL ??
+          fileConfig?.openai?.baseUrl ??
+          "https://api.openai.com"
+      ),
+      defaultModel:
+        process.env.OPENAI_DEFAULT_MODEL ??
+        process.env.OWN_AG_OPENAI_DEFAULT_MODEL ??
+        fileConfig?.openai?.defaultModel ??
+        "gpt-4.1-mini"
+    },
+    groq: {
+      enabled: envBool("OWN_AG_GROQ_ENABLED", fileConfig?.groq?.enabled ?? false),
+      apiKey: groqApiKey,
+      apiKeys: uniqueValues([
+        ...envList("OWN_AG_GROQ_API_KEYS"),
+        ...(fileConfig?.groq?.apiKeys ?? []),
+        groqApiKey
+      ]),
+      baseUrl: cleanBaseUrl(
+        process.env.OWN_AG_GROQ_BASE_URL ??
+          fileConfig?.groq?.baseUrl ??
+          "https://api.groq.com/openai"
+      ),
+      defaultModel:
+        process.env.OWN_AG_GROQ_DEFAULT_MODEL ??
+        fileConfig?.groq?.defaultModel ??
+        "groq/openai/gpt-oss-20b"
+    },
+    cerebras: {
+      enabled: envBool("OWN_AG_CEREBRAS_ENABLED", fileConfig?.cerebras?.enabled ?? false),
+      apiKey: cerebrasApiKey,
+      apiKeys: uniqueValues([
+        ...envList("OWN_AG_CEREBRAS_API_KEYS"),
+        ...(fileConfig?.cerebras?.apiKeys ?? []),
+        cerebrasApiKey
+      ]),
+      baseUrl: cleanBaseUrl(
+        process.env.OWN_AG_CEREBRAS_BASE_URL ??
+          fileConfig?.cerebras?.baseUrl ??
+          "https://api.cerebras.ai"
+      ),
+      defaultModel:
+        process.env.OWN_AG_CEREBRAS_DEFAULT_MODEL ??
+        fileConfig?.cerebras?.defaultModel ??
+        "cerebras/gpt-oss-120b"
+    },
+    ollama: {
+      enabled: envBool("OWN_AG_OLLAMA_ENABLED", fileConfig?.ollama?.enabled ?? false),
+      apiKey: ollamaApiKey,
+      apiKeys: uniqueValues([
+        ...envList("OWN_AG_OLLAMA_API_KEYS"),
+        ...(fileConfig?.ollama?.apiKeys ?? []),
+        ollamaApiKey
+      ]),
+      baseUrl: cleanBaseUrl(
+        process.env.OWN_AG_OLLAMA_BASE_URL ??
+          fileConfig?.ollama?.baseUrl ??
+          "http://127.0.0.1:11434"
+      ),
+      defaultModel:
+        process.env.OWN_AG_OLLAMA_DEFAULT_MODEL ??
+        fileConfig?.ollama?.defaultModel ??
+        "ollama/llama3.2"
+    },
+    mistral: {
+      enabled: envBool("OWN_AG_MISTRAL_ENABLED", fileConfig?.mistral?.enabled ?? false),
+      apiKey: mistralApiKey,
+      apiKeys: uniqueValues([
+        ...envList("OWN_AG_MISTRAL_API_KEYS"),
+        ...(fileConfig?.mistral?.apiKeys ?? []),
+        mistralApiKey
+      ]),
+      baseUrl: cleanBaseUrl(
+        process.env.OWN_AG_MISTRAL_BASE_URL ??
+          fileConfig?.mistral?.baseUrl ??
+          "https://api.mistral.ai"
+      ),
+      defaultModel:
+        process.env.OWN_AG_MISTRAL_DEFAULT_MODEL ??
+        fileConfig?.mistral?.defaultModel ??
+        "mistral/mistral-small-latest"
+    },
     zai: {
       enabled: envBool("OWN_AG_ZAI_ENABLED", fileConfig?.zai?.enabled ?? false),
       apiKey: zaiApiKey,
@@ -395,6 +567,11 @@ export function loadConfig(overrides: Partial<ProxyConfig> = {}): ProxyConfig {
     cloudCode: { ...config.cloudCode, ...overrides.cloudCode },
     gemini: { ...config.gemini, ...overrides.gemini },
     anthropic: { ...config.anthropic, ...overrides.anthropic },
+    openai: { ...config.openai, ...overrides.openai },
+    groq: { ...config.groq, ...overrides.groq },
+    cerebras: { ...config.cerebras, ...overrides.cerebras },
+    ollama: { ...config.ollama, ...overrides.ollama },
+    mistral: { ...config.mistral, ...overrides.mistral },
     zai: { ...config.zai, ...overrides.zai },
     mcp: { ...config.mcp, ...overrides.mcp }
   };
@@ -420,6 +597,26 @@ export function writeConfigPatch(patch: z.infer<typeof ConfigSchema>): void {
     anthropic: {
       ...(current?.anthropic ?? {}),
       ...(patch?.anthropic ?? {})
+    },
+    openai: {
+      ...(current?.openai ?? {}),
+      ...(patch?.openai ?? {})
+    },
+    groq: {
+      ...(current?.groq ?? {}),
+      ...(patch?.groq ?? {})
+    },
+    cerebras: {
+      ...(current?.cerebras ?? {}),
+      ...(patch?.cerebras ?? {})
+    },
+    ollama: {
+      ...(current?.ollama ?? {}),
+      ...(patch?.ollama ?? {})
+    },
+    mistral: {
+      ...(current?.mistral ?? {}),
+      ...(patch?.mistral ?? {})
     },
     zai: {
       ...(current?.zai ?? {}),
@@ -507,21 +704,7 @@ export function writeDefaultConfig(): boolean {
           tokenEncryptionKey: "",
           tokenUrl: "https://oauth2.googleapis.com/token"
         },
-        modelAliases: {
-          "gpt-4o": "gemini-2.5-pro",
-          "gpt-4.1": "gemini-2.5-pro",
-          "gpt-5": "gemini-2.5-pro",
-          "gemini-latest": "gemini-2.5-pro",
-          "gemini-pro-latest": "gemini-2.5-pro",
-          "gemini-flash-latest": "gemini-2.5-flash",
-          "gemini-2.5-pro-latest": "gemini-2.5-pro",
-          "gemini-2.5-flash-latest": "gemini-2.5-flash",
-          "gemini-2.5-flash-lite-latest": "gemini-2.5-flash-lite",
-          "gemini-2.5-flash-image-latest": "gemini-2.5-flash-image"
-          ,
-          "claude-haiku": "claude-haiku-4-5",
-          "claude-haiku-4-5": "claude-haiku-4-5"
-        },
+        modelAliases: defaultModelAliases,
         gemini: {
           apiKey: "",
           apiKeys: [],
@@ -533,6 +716,40 @@ export function writeDefaultConfig(): boolean {
           apiKeys: [],
           baseUrl: "https://api.anthropic.com",
           version: "2023-06-01"
+        },
+        openai: {
+          apiKey: "",
+          apiKeys: [],
+          baseUrl: "https://api.openai.com",
+          defaultModel: "gpt-4.1-mini"
+        },
+        groq: {
+          enabled: false,
+          apiKey: "",
+          apiKeys: [],
+          baseUrl: "https://api.groq.com/openai",
+          defaultModel: "groq/openai/gpt-oss-20b"
+        },
+        cerebras: {
+          enabled: false,
+          apiKey: "",
+          apiKeys: [],
+          baseUrl: "https://api.cerebras.ai",
+          defaultModel: "cerebras/gpt-oss-120b"
+        },
+        ollama: {
+          enabled: false,
+          apiKey: "",
+          apiKeys: [],
+          baseUrl: "http://127.0.0.1:11434",
+          defaultModel: "ollama/llama3.2"
+        },
+        mistral: {
+          enabled: false,
+          apiKey: "",
+          apiKeys: [],
+          baseUrl: "https://api.mistral.ai",
+          defaultModel: "mistral/mistral-small-latest"
         },
         zai: {
           enabled: false,

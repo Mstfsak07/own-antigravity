@@ -48,13 +48,27 @@ async function startGateway() {
   }
   process.env.OWN_AG_HOST = process.env.OWN_AG_HOST || "127.0.0.1";
   const appRoot = path.join(__dirname, "..");
-  const [{ loadConfig }, { buildServer }] = await Promise.all([
+  const [{ loadConfig }, { buildServer }, gatewayHelper] = await Promise.all([
     import(pathToFileURL(path.join(appRoot, "dist", "config.js")).href),
-    import(pathToFileURL(path.join(appRoot, "dist", "server.js")).href)
+    import(pathToFileURL(path.join(appRoot, "dist", "server.js")).href),
+    import(pathToFileURL(path.join(appRoot, "dist", "desktopGateway.js")).href)
   ]);
+  const { existingGatewayNeedsRestart, requestExistingGatewayShutdown } = gatewayHelper;
   const config = loadConfig();
   gatewayConfig = config;
   const configuredUrl = `http://${config.host}:${config.port}`;
+  if (await existingGatewayIsReachable(configuredUrl)) {
+    if (await existingGatewayNeedsRestart(configuredUrl, config.localApiKey)) {
+      const restarted = await requestExistingGatewayShutdown(
+        configuredUrl,
+        config.localApiKey,
+        existingGatewayIsReachable
+      );
+      if (restarted) {
+        log(`replaced unhealthy existing gateway ${configuredUrl}`);
+      }
+    }
+  }
   if (await existingGatewayIsReachable(configuredUrl)) {
     gatewayUrl = configuredUrl;
     gatewayOwned = false;
@@ -213,6 +227,40 @@ ipcMain.handle("gateway:config", async () => {
       baseUrl: gatewayConfig.anthropic.baseUrl,
       version: gatewayConfig.anthropic.version
     },
+    openai: {
+      baseUrl: gatewayConfig.openai.baseUrl,
+      defaultModel: gatewayConfig.openai.defaultModel,
+      apiKey: gatewayConfig.openai.apiKey || "",
+      apiKeys: gatewayConfig.openai.apiKeys
+    },
+    groq: {
+      enabled: gatewayConfig.groq.enabled,
+      baseUrl: gatewayConfig.groq.baseUrl,
+      defaultModel: gatewayConfig.groq.defaultModel,
+      apiKey: gatewayConfig.groq.apiKey || "",
+      apiKeys: gatewayConfig.groq.apiKeys
+    },
+    cerebras: {
+      enabled: gatewayConfig.cerebras.enabled,
+      baseUrl: gatewayConfig.cerebras.baseUrl,
+      defaultModel: gatewayConfig.cerebras.defaultModel,
+      apiKey: gatewayConfig.cerebras.apiKey || "",
+      apiKeys: gatewayConfig.cerebras.apiKeys
+    },
+    ollama: {
+      enabled: gatewayConfig.ollama.enabled,
+      baseUrl: gatewayConfig.ollama.baseUrl,
+      defaultModel: gatewayConfig.ollama.defaultModel,
+      apiKey: gatewayConfig.ollama.apiKey || "",
+      apiKeys: gatewayConfig.ollama.apiKeys
+    },
+    mistral: {
+      enabled: gatewayConfig.mistral.enabled,
+      baseUrl: gatewayConfig.mistral.baseUrl,
+      defaultModel: gatewayConfig.mistral.defaultModel,
+      apiKey: gatewayConfig.mistral.apiKey || "",
+      apiKeys: gatewayConfig.mistral.apiKeys
+    },
     zai: {
       enabled: gatewayConfig.zai.enabled,
       baseUrl: gatewayConfig.zai.baseUrl,
@@ -242,6 +290,11 @@ ipcMain.handle("gateway:config:import", async (_event, incoming) => {
     cloudCode: patch.cloudCode,
     gemini: patch.gemini,
     anthropic: patch.anthropic,
+    openai: patch.openai,
+    groq: patch.groq,
+    cerebras: patch.cerebras,
+    ollama: patch.ollama,
+    mistral: patch.mistral,
     zai: patch.zai,
     mcp: patch.mcp
   });

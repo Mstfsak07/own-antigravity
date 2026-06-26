@@ -31,6 +31,29 @@ export function mergeTrafficColumns(snapshot) {
   };
 }
 
+export function statusTone(status) {
+  const code = Number(status);
+  if (code >= 200 && code < 300) return "success";
+  if (code >= 400 && code < 500) return "error";
+  return "warning";
+}
+
+export function protocolTone(provider) {
+  const value = String(provider || "").trim().toLowerCase();
+  if (!value || value === "-") return "unknown";
+  if (value.includes("gemini")) return "gemini";
+  if (value.includes("claude") || value.includes("anthropic")) return "claude";
+  if (value.includes("openai")) return "openai";
+  if (value.includes("groq")) return "groq";
+  if (value.includes("cerebras")) return "cerebras";
+  if (value.includes("ollama")) return "ollama";
+  if (value.includes("mistral")) return "mistral";
+  if (value.includes("cloudcode") || value.includes("cloud code")) return "cloudcode";
+  if (value.includes("native")) return "native";
+  if (value.includes("zai") || value.includes("z.ai")) return "zai";
+  return "unknown";
+}
+
 function protocolFromRoute(route) {
   if (route.includes("/v1/messages")) return "Claude";
   if (route.includes("/v1/chat")) return "OpenAI";

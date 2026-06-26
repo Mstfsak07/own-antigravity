@@ -36,6 +36,7 @@ const PhaseSchema = z.object({
 const PlanSchema = z.object({
   goal: z.string(),
   workspaceDir: z.string().optional(),
+  globalContextFiles: z.array(z.string()).optional().default([]),
   phases: z.array(PhaseSchema).min(1)
 });
 
@@ -178,6 +179,7 @@ function buildTaskPrompt(
   priorTaskResults: TaskRunRecord[],
   phaseCarryover: string[]
 ): string {
+  const contextFiles = [...new Set([...(plan.globalContextFiles ?? []), ...task.contextFiles])];
   const priorOutputs = task.passPriorTaskOutputs && priorTaskResults.length > 0
     ? priorTaskResults
         .map(
@@ -193,7 +195,7 @@ function buildTaskPrompt(
     ? phaseCarryover.map((item) => `- ${item}`).join("\n")
     : "None";
 
-  const contextSections = task.contextFiles
+  const contextSections = contextFiles
     .map((filePath) => {
       const resolved = resolve(workspaceDir, filePath);
       if (!existsSync(resolved)) {
@@ -217,9 +219,9 @@ function buildTaskPrompt(
     "Carryover items from earlier tasks/phases:",
     carryover,
     "",
-    task.contextFiles.length > 0 ? "Context file contents:" : undefined,
-    task.contextFiles.length > 0 ? contextSections : undefined,
-    task.contextFiles.length > 0 ? "" : undefined,
+    contextFiles.length > 0 ? "Context file contents:" : undefined,
+    contextFiles.length > 0 ? contextSections : undefined,
+    contextFiles.length > 0 ? "" : undefined,
     "Task instructions:",
     task.prompt,
     "",

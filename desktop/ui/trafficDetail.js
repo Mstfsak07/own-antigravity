@@ -1,4 +1,4 @@
-import { normalizeTrafficRecord } from "./traffic.js";
+import { normalizeTrafficRecord, protocolTone } from "./traffic.js";
 
 function tokenText(tokens) {
   if (!tokens) return "-";
@@ -15,11 +15,13 @@ export function openTrafficDetailModal(options) {
   if (!record) return;
 
   const normalized = normalizeTrafficRecord(record, formatTrafficPayload);
+  const providerNode = getNode("trafficDetailProvider");
   getNode("trafficDetailTitle").textContent = `${record.statusCode} ${record.method} ${record.route}`;
   getNode("trafficDetailAt").textContent = record.at ? new Date(record.at).toLocaleString() : "-";
   getNode("trafficDetailDuration").textContent = record.durationMs ? `${record.durationMs}ms` : "-";
   getNode("trafficDetailTokens").textContent = tokenText(record.tokens);
-  getNode("trafficDetailProvider").textContent = record.provider || "-";
+  providerNode.textContent = record.provider || "-";
+  providerNode.className = `protocol-text ${protocolTone(record.provider)}`;
   getNode("trafficDetailModel").textContent = record.resolvedModel ? `${record.model} → ${record.resolvedModel}` : (record.model || "-");
   getNode("trafficDetailAccount").textContent = record.account || "-";
   getNode("trafficDetailSystem").textContent = normalized.system;

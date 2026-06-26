@@ -90,6 +90,17 @@ export function estimateTrafficTokens(requestBody: unknown, responseBody: unknow
   };
 }
 
+function compactTrafficPayload(value: unknown): unknown {
+  if (value === undefined) return undefined;
+  const text = serializeTrafficPayload(value);
+  if (text === "") return "";
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
 export class Metrics {
   private readonly startedAt = Date.now();
   private readonly trafficPath: string;
@@ -290,9 +301,9 @@ export class Metrics {
       statusCode: input.statusCode,
       durationMs: input.durationMs ?? (input.startedAt !== undefined ? Date.now() - input.startedAt : undefined),
       tokens: input.tokens ?? estimateTrafficTokens(input.requestBody, responsePayload),
-      requestBody: input.requestBody,
-      responseBody: input.responseBody,
-      errorBody: input.errorBody
+      requestBody: compactTrafficPayload(input.requestBody),
+      responseBody: compactTrafficPayload(input.responseBody),
+      errorBody: compactTrafficPayload(input.errorBody)
     };
     this.recordTraffic(record);
     return record;

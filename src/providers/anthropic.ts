@@ -7,6 +7,7 @@ import { classifyError, classifyStatus } from "../errors.js";
 import { filteredRequestHeaders, jsonBody, pipeUpstream, requireKey } from "../http.js";
 import { estimateTrafficTokens } from "../metrics.js";
 import type { Runtime } from "../runtime.js";
+import { optimizeAnthropicRequest, readResponseCache, writeResponseCache } from "../tokenPolicy.js";
 import { providerErrorPayload } from "./adapter.js";
 import { callCloudCodeWithFailover } from "./cloudCodeFailover.js";
 import { tryNativeLs } from "./native.js";
@@ -97,9 +98,12 @@ export function registerAnthropicRoutes(app: FastifyInstance, runtime: Runtime):
   app.post<{ Body: ClaudeMessagesRequest }>("/v1/messages", async (request, reply) => {
     const body = request.body;
     const requestedModel = body?.model;
-    const resolvedModel = runtime.resolveModel(requestedModel);
+    const initialModel = runtime.resolveModel(requestedModel);
+    const policy = optimizeAnthropicRequest(body, initialModel);
+    const effectiveBody = policy.body;
+    const resolvedModel = policy.model;
     if (requestedModel) {
-      const handled = await tryNativeLs(runtime, reply, request, resolvedModel, "anthropic", body, Boolean(body.stream));
+      const handled = await tryNativeLs(runtime, reply, request, resolvedModel, "anthropic", effectiveBody, Boolean(effectiveBody.stream));
       if (handled) {
         return;
       }
@@ -122,20 +126,39 @@ export function registerAnthropicRoutes(app: FastifyInstance, runtime: Runtime):
       : undefined;
 
     if (cloudCodeAccount) {
-      const method = body.stream ? "streamGenerateContent" : "generateContent";
+      const method = effectiveBody.stream ? "streamGenerateContent" : "generateContent";
       const startedAt = Date.now();
+      if (!effectiveBody.stream) {
+        const cached = readResponseCache(`anthropic:messages:${runtime.config.dataDir}`, resolvedModel, effectiveBody);
+        if (cached) {
+          return reply.send(cached);
+        }
+      }
       const relay = await callCloudCodeWithFailover({
         runtime,
         model: resolvedModel,
         method,
-        search: body.stream ? "alt=sse" : undefined,
+        search: effectiveBody.stream ? "alt=sse" : undefined,
         maxAttempts: activeAccount ? 4 : 5,
-        buildBody: (account, candidateModel) => toCloudCodeRequest(body, resolveCloudCodeModelForAccount(account, candidateModel), account.projectId, runtime.config.cloudCode.userAgent),
+        buildBody: (account, candidateModel) => toCloudCodeRequest(effectiveBody, resolveCloudCodeModelForAccount(account, candidateModel), account.projectId, runtime.config.cloudCode.userAgent),
         initialAccount: cloudCodeAccount
       });
 
       if (!relay.ok && relay.error) {
         const mapped = providerErrorPayload("cloudCode", relay.error);
+        runtime.metrics.recordProviderTraffic({
+          actor: accountLabel(relay.account),
+          method: request.method,
+          route: request.url,
+          provider: "cloudCode",
+          model: resolvedModel,
+          account: accountLabel(relay.account),
+          statusCode: mapped.statusCode,
+          startedAt,
+          tokens: estimateTrafficTokens(relay.requestBody, mapped.body),
+          requestBody: relay.requestBody,
+          errorBody: mapped.body
+        });
         return reply.status(mapped.statusCode).send(mapped.body);
       }
       if (!relay.response || !relay.account || !relay.requestBody) {
@@ -167,7 +190,7 @@ export function registerAnthropicRoutes(app: FastifyInstance, runtime: Runtime):
         errorBody: upstream.ok ? undefined : upstreamData
       });
 
-      if (body.stream) {
+      if (effectiveBody.stream) {
         if (!upstream.ok) {
           const data = await upstream.json().catch(async () => ({ error: await upstream.text() }));
           return reply.status(upstream.status).send(data);
@@ -175,7 +198,7 @@ export function registerAnthropicRoutes(app: FastifyInstance, runtime: Runtime):
 
         reply.header("content-type", "text/event-stream; charset=utf-8");
         reply.header("cache-control", "no-cache");
-        return reply.send(readableClaudeStream(upstream, body, `msg_${crypto.randomUUID().replace(/-/g, "")}`));
+        return reply.send(readableClaudeStream(upstream, effectiveBody, `msg_${crypto.randomUUID().replace(/-/g, "")}`));
       }
 
       const data = await upstream.json().catch(async () => ({ error: await upstream.text() }));
@@ -183,7 +206,9 @@ export function registerAnthropicRoutes(app: FastifyInstance, runtime: Runtime):
         return reply.status(upstream.status).send(data);
       }
 
-      return reply.send(toClaudeResponse(body, data));
+      const responseBody = toClaudeResponse({ ...effectiveBody, model: initialModel }, data);
+      writeResponseCache(`anthropic:messages:${runtime.config.dataDir}`, resolvedModel, effectiveBody, responseBody);
+      return reply.send(responseBody);
     }
 
     await proxyAnthropic("/v1/messages", request, reply, runtime);

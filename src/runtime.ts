@@ -15,6 +15,11 @@ export type Runtime = {
   config: ProxyConfig;
   geminiKeys: ApiKeyPool;
   anthropicKeys: ApiKeyPool;
+  openaiKeys: ApiKeyPool;
+  groqKeys: ApiKeyPool;
+  cerebrasKeys: ApiKeyPool;
+  ollamaKeys: ApiKeyPool;
+  mistralKeys: ApiKeyPool;
   zaiKeys: ApiKeyPool;
   cloudCodeAccounts: CloudCodeAccountPool;
   assetProvisioner: AssetProvisioner;
@@ -71,6 +76,34 @@ function storedToCloudCodeAccount(account: StoredAccount): CloudCodeAccount | un
   };
 }
 
+function isTransientCloudCodeHealthReason(reason: string | undefined): boolean {
+  return reason === "provider_error" ||
+    reason === "network_error" ||
+    reason === "timeout" ||
+    reason === "http_404" ||
+    reason === "http_500" ||
+    reason === "http_502" ||
+    reason === "http_503" ||
+    reason === "http_504";
+}
+
+function reviveTransientCloudCodeHealth(account: CloudCodeAccount): CloudCodeAccount {
+  if (account.disabled || account.health.healthy || !isTransientCloudCodeHealthReason(account.health.disabledReason)) {
+    return account;
+  }
+  return {
+    ...account,
+    health: {
+      healthy: true,
+      consecutiveFailures: 0,
+      lastSuccessAt: account.health.lastSuccessAt,
+      lastFailureAt: account.health.lastFailureAt,
+      disabledReason: undefined,
+      nextRetryAt: undefined
+    }
+  };
+}
+
 export function createRuntime(config: ProxyConfig): Runtime {
   const importedAccounts = loadCloudCodeAccounts(config);
   const assetProvisioner = new AssetProvisioner(config);
@@ -82,6 +115,7 @@ export function createRuntime(config: ProxyConfig): Runtime {
     .list(true)
     .map(storedToCloudCodeAccount)
     .filter((account): account is CloudCodeAccount => Boolean(account))
+    .map(reviveTransientCloudCodeHealth)
     .filter((account) => !account.disabled);
   const accountMap = new Map<string, CloudCodeAccount>();
   for (const account of [...registryAccounts, ...importedAccounts]) {
@@ -103,6 +137,11 @@ export function createRuntime(config: ProxyConfig): Runtime {
     config,
     geminiKeys: new ApiKeyPool(config.gemini.apiKeys, config.cloudCode.quarantineSeconds),
     anthropicKeys: new ApiKeyPool(config.anthropic.apiKeys, config.cloudCode.quarantineSeconds),
+    openaiKeys: new ApiKeyPool(config.openai.apiKeys, config.cloudCode.quarantineSeconds),
+    groqKeys: new ApiKeyPool(config.groq.apiKeys, config.cloudCode.quarantineSeconds),
+    cerebrasKeys: new ApiKeyPool(config.cerebras.apiKeys, config.cloudCode.quarantineSeconds),
+    ollamaKeys: new ApiKeyPool(config.ollama.apiKeys, config.cloudCode.quarantineSeconds),
+    mistralKeys: new ApiKeyPool(config.mistral.apiKeys, config.cloudCode.quarantineSeconds),
     zaiKeys: new ApiKeyPool(config.zai.apiKeys, config.cloudCode.quarantineSeconds),
     cloudCodeAccounts,
     assetProvisioner,

@@ -15,6 +15,11 @@ const STABLE_GEMINI_MODELS = [
 const GEMINI_COMPATIBILITY_MAP: Record<string, string[]> = {
   "gemini-latest": ["gemini-3.1-pro-high"],
   "gemini-pro-latest": ["gemini-3.1-pro-high"],
+  "gemini-3-pro-preview": ["gemini-3.1-pro-high", "gemini-3.1-pro-low", "gemini-2.5-pro"],
+  "gemini-3.1-pro-preview": ["gemini-3.1-pro-high", "gemini-3.1-pro-low", "gemini-2.5-pro"],
+  "gemini-3.1-pro-preview-customtools": ["gemini-3.1-pro-high", "gemini-3.1-pro-low", "gemini-2.5-pro"],
+  "gemini-3-flash-preview": ["gemini-3-flash", "gemini-3.1-flash-lite", "gemini-2.5-flash"],
+  "gemini-3.1-flash-lite-preview": ["gemini-3.1-flash-lite", "gemini-3-flash", "gemini-2.5-flash-lite"],
   "gemini-flash-latest": ["gemini-3-flash"],
   "gemini-2.5-pro-latest": ["gemini-3.1-pro-high"],
   "gemini-2.5-flash-latest": ["gemini-3-flash"],
@@ -79,6 +84,11 @@ const GEMINI_COMPATIBILITY_MAP: Record<string, string[]> = {
 const GEMINI_CANONICAL_OVERRIDES: Record<string, string> = {
   "gemini-latest": "gemini-3.1-pro-high",
   "gemini-pro-latest": "gemini-3.1-pro-high",
+  "gemini-3-pro-preview": "gemini-3.1-pro-high",
+  "gemini-3.1-pro-preview": "gemini-3.1-pro-high",
+  "gemini-3.1-pro-preview-customtools": "gemini-3.1-pro-high",
+  "gemini-3-flash-preview": "gemini-3-flash",
+  "gemini-3.1-flash-lite-preview": "gemini-3.1-flash-lite",
   "gemini-flash-latest": "gemini-3-flash",
   "gemini-2.5-pro-latest": "gemini-3.1-pro-high",
   "gemini-2.5-flash-latest": "gemini-3-flash",
@@ -91,8 +101,8 @@ const GEMINI_CANONICAL_OVERRIDES: Record<string, string> = {
   "gemini-3.1-flash-image": "gemini-3.1-flash-image",
   "gemini-3-flash": "gemini-3-flash",
   "gemini-3-flash-agent": "gemini-3-flash-agent",
-  "gemini-2.5-pro": "gemini-3.1-pro-high",
-  "gemini-2.5-flash": "gemini-3-flash",
+  "gemini-2.5-pro": "gemini-2.5-pro",
+  "gemini-2.5-flash": "gemini-2.5-flash",
   "gemini-2.0-flash": "gemini-2.0-flash-001",
   "gemini-2.0-flash-lite": "gemini-2.0-flash-lite-001"
 };

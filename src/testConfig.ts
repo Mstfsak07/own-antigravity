@@ -61,6 +61,40 @@ export function baseTestConfig(overrides: DeepPartial<ProxyConfig> = {}): ProxyC
       baseUrl: "https://api.anthropic.com",
       version: "2023-06-01"
     },
+    openai: {
+      apiKey: "openai-test-key",
+      apiKeys: ["openai-test-key"],
+      baseUrl: "https://api.openai.com",
+      defaultModel: "gpt-4.1-mini"
+    },
+    groq: {
+      enabled: false,
+      apiKey: "groq-test-key",
+      apiKeys: ["groq-test-key"],
+      baseUrl: "https://api.groq.com/openai",
+      defaultModel: "groq/openai/gpt-oss-20b"
+    },
+    cerebras: {
+      enabled: false,
+      apiKey: "cerebras-test-key",
+      apiKeys: ["cerebras-test-key"],
+      baseUrl: "https://api.cerebras.ai",
+      defaultModel: "cerebras/gpt-oss-120b"
+    },
+    ollama: {
+      enabled: false,
+      apiKey: "ollama",
+      apiKeys: ["ollama"],
+      baseUrl: "http://127.0.0.1:11434",
+      defaultModel: "ollama/llama3.2"
+    },
+    mistral: {
+      enabled: false,
+      apiKey: "mistral-test-key",
+      apiKeys: ["mistral-test-key"],
+      baseUrl: "https://api.mistral.ai",
+      defaultModel: "mistral/mistral-small-latest"
+    },
     zai: {
       enabled: false,
       apiKey: "zai-test-key",
@@ -83,6 +117,11 @@ export function baseTestConfig(overrides: DeepPartial<ProxyConfig> = {}): ProxyC
     cloudCode: { ...config.cloudCode, ...overrides.cloudCode },
     gemini: { ...config.gemini, ...overrides.gemini },
     anthropic: { ...config.anthropic, ...overrides.anthropic },
+    openai: { ...config.openai, ...overrides.openai },
+    groq: { ...config.groq, ...overrides.groq },
+    cerebras: { ...config.cerebras, ...overrides.cerebras },
+    ollama: { ...config.ollama, ...overrides.ollama },
+    mistral: { ...config.mistral, ...overrides.mistral },
     zai: { ...config.zai, ...overrides.zai },
     mcp: { ...config.mcp, ...overrides.mcp }
   } as ProxyConfig;

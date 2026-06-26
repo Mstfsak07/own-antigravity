@@ -7,6 +7,9 @@ export function classifyStatus(status: number): ErrorClass {
   if (status === 429) {
     return "rate_limit";
   }
+  if (status === 408 || status === 504) {
+    return "timeout";
+  }
   if (status >= 500) {
     return "provider_error";
   }

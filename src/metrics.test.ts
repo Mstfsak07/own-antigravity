@@ -133,4 +133,23 @@ describe("Metrics", () => {
       statusCode: 429
     });
   });
+
+  it("compacts large provider payloads before keeping them in traffic history", () => {
+    const dir = makeDir();
+    const metrics = new Metrics(dir);
+    const largeText = "x".repeat(20_000);
+
+    const record = metrics.recordProviderTraffic({
+      method: "POST",
+      route: "/v1/messages",
+      provider: "cloudCode",
+      model: "claude-sonnet-4-6",
+      statusCode: 500,
+      requestBody: { image: largeText },
+      errorBody: { error: "internal" }
+    });
+
+    expect(JSON.stringify(record.requestBody).length).toBeLessThan(13_000);
+    expect(JSON.stringify(metrics.snapshot().recentRequests[0].requestBody).length).toBeLessThan(13_000);
+  });
 });

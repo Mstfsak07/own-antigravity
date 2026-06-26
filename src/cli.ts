@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { configPath, loadConfig, writeDefaultConfig } from "./config.js";
+import { initAutomationWorkspace } from "./automation/scaffold.js";
 import { runAutomationPlan } from "./automation/runner.js";
 import { startServer } from "./server.js";
 
@@ -12,6 +13,7 @@ Usage:
   own-ag doctor
   own-ag diagnose:ls
   own-ag accounts
+  own-ag automate:init [--workspace .] [--name MyProject] [--force]
   own-ag automate --plan .\\plan.json [--workspace .] [--output-dir .\\.own-ag-runs] [--direct]
 
 Environment:
@@ -160,6 +162,25 @@ async function main(): Promise<void> {
             taskCount: phase.tasks.length,
             carryoverCount: phase.carryover.length
           }))
+        },
+        null,
+        2
+      )}\n`
+    );
+    return;
+  }
+
+  if (command === "automate:init") {
+    const workspaceDir = optionValue(args, "--workspace");
+    const projectName = optionValue(args, "--name");
+    const force = args.includes("--force");
+    const result = initAutomationWorkspace({ workspaceDir, projectName, force });
+    process.stdout.write(
+      `${JSON.stringify(
+        {
+          workspaceDir: result.workspaceDir,
+          orchestratorDir: result.orchestratorDir,
+          createdFiles: result.createdFiles
         },
         null,
         2

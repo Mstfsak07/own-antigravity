@@ -7,6 +7,10 @@ import type { CloudCodeAccount, ProxyConfig } from "../types.js";
 import { refreshCloudCodeToken } from "./oauth.js";
 import { fetchCloudCodeQuota } from "./quota.js";
 
+const CLOUD_CODE_RATE_LIMIT_QUARANTINE_MS = 24 * 60 * 60 * 1000;
+const CLOUD_CODE_TIMEOUT_QUARANTINE_MS = 15 * 60 * 1000;
+const CLOUD_CODE_TIMEOUT_MODEL_COOLDOWN_MS = 10 * 60 * 1000;
+
 const AccountFileSchema = z.object({
   id: z.string().optional(),
   email: z.string().optional(),
@@ -61,6 +65,29 @@ function normalizeFailureReason(reason: ReturnType<typeof classifyStatus> | Retu
   return reason as ReturnType<typeof classifyStatus> | ReturnType<typeof classifyError>;
 }
 
+function cloudCodeQuarantineMs(
+  reason: ReturnType<typeof classifyStatus> | ReturnType<typeof classifyError>,
+  defaultSeconds: number,
+  failureCount: number
+): number {
+  if (reason === "rate_limit") {
+    return CLOUD_CODE_RATE_LIMIT_QUARANTINE_MS;
+  }
+  if (reason === "timeout") {
+    const multiplier = Math.min(4, 2 ** Math.max(0, failureCount - 1));
+    return Math.max(defaultSeconds * 1000, CLOUD_CODE_TIMEOUT_QUARANTINE_MS) * multiplier;
+  }
+  return quarantineMs(reason, defaultSeconds, failureCount);
+}
+
+function isTimeoutFailure(statusOrReason: number | string): boolean {
+  return statusOrReason === 408 ||
+    statusOrReason === 504 ||
+    statusOrReason === "timeout" ||
+    statusOrReason === "http_408" ||
+    statusOrReason === "http_504";
+}
+
 function canRetry(account: CloudCodeAccount): boolean {
   return !account.health.nextRetryAt || Date.parse(account.health.nextRetryAt) <= Date.now();
 }
@@ -77,6 +104,11 @@ function normalizeCloudCodeModelName(model: string): string {
     .trim()
     .toLowerCase()
     .replace(/^models\//, "");
+}
+
+function requiresProjectBinding(model: string): boolean {
+  const normalized = normalizeCloudCodeModelName(model);
+  return Boolean(normalized);
 }
 
 function claudeCompatibilityCandidates(model: string): string[] {
@@ -131,6 +163,12 @@ export function cloudCodeModelCandidates(model: string): string[] {
 
 export function cloudCodeRecoveryModelCandidates(model: string): string[] {
   const normalized = normalizeCloudCodeModelName(model);
+  if (normalized === "claude-sonnet" || normalized.startsWith("claude-sonnet-")) {
+    return ["claude-haiku-4-5"];
+  }
+  if (normalized === "claude-opus" || normalized.startsWith("claude-opus-")) {
+    return ["claude-sonnet-4-6", "claude-haiku-4-5"];
+  }
   if (normalized === "gemini-3-flash") {
     return ["gemini-3.1-pro-high", "gemini-3.1-pro-low", "gemini-2.5-pro"];
   }
@@ -323,6 +361,18 @@ export class CloudCodeAccountPool {
     this.onAccountUpdated?.(account);
   }
 
+  clearProjectId(accountId: string): CloudCodeAccount | undefined {
+    const account = this.accounts.find((item) => item.id === accountId);
+    if (!account) {
+      return undefined;
+    }
+    if (account.projectId) {
+      account.projectId = undefined;
+      this.onAccountUpdated?.(account);
+    }
+    return account;
+  }
+
   remove(accountId: string): boolean {
     const index = this.accounts.findIndex((account) => account.id === accountId);
     if (index === -1) {
@@ -346,14 +396,21 @@ export class CloudCodeAccountPool {
 
   async select(model: string, options: { excludeIds?: string[] } = {}): Promise<CloudCodeAccount | undefined> {
     const excludeIds = new Set(options.excludeIds || []);
-    const baseCandidates = this.accounts
+    const eligibleCandidates = this.accounts
       .filter((account) => !account.disabled)
       .filter((account) => !excludeIds.has(account.id))
-      .filter((account) => accountSupportsModel(account, model))
+      .filter((account) => accountSupportsModel(account, model));
+    const hasProjectBoundCandidate =
+      requiresProjectBinding(model) && eligibleCandidates.some((account) => Boolean(account.projectId));
+    const baseCandidates = eligibleCandidates
       .filter((account) => canRetry(account));
-    const candidates = (baseCandidates.some((account) => !this.isModelCoolingDown(account.id, model))
-      ? baseCandidates.filter((account) => !this.isModelCoolingDown(account.id, model))
-      : baseCandidates)
+    const projectBoundCandidates =
+      hasProjectBoundCandidate
+        ? baseCandidates.filter((account) => Boolean(account.projectId))
+        : baseCandidates;
+    const candidates = (projectBoundCandidates.some((account) => !this.isModelCoolingDown(account.id, model))
+      ? projectBoundCandidates.filter((account) => !this.isModelCoolingDown(account.id, model))
+      : projectBoundCandidates)
       .sort((a, b) => {
         const matchDiff = this.combinedSelectionScore(b, model) - this.combinedSelectionScore(a, model);
         if (matchDiff !== 0) return matchDiff;
@@ -407,7 +464,9 @@ export class CloudCodeAccountPool {
     const current = state.get(key) ?? { failureCount: 0 };
     const failureCount = current.failureCount + 1;
     let cooldownMs = 15_000;
-    if (statusOrReason === 429 || statusOrReason === "rate_limit" || statusOrReason === "http_429") {
+    if (isTimeoutFailure(statusOrReason)) {
+      cooldownMs = CLOUD_CODE_TIMEOUT_MODEL_COOLDOWN_MS;
+    } else if (statusOrReason === 429 || statusOrReason === "rate_limit" || statusOrReason === "http_429") {
       cooldownMs = 120_000;
     } else if (statusOrReason === 401 || statusOrReason === 403 || statusOrReason === "auth_error") {
       cooldownMs = 180_000;
@@ -435,7 +494,7 @@ export class CloudCodeAccountPool {
       lastSuccessAt: account.health.lastSuccessAt,
       lastFailureAt: nowIso(),
       disabledReason: reason,
-      nextRetryAt: new Date(Date.now() + quarantineMs(normalizedReason, this.config.cloudCode.quarantineSeconds, failures)).toISOString()
+      nextRetryAt: new Date(Date.now() + cloudCodeQuarantineMs(normalizedReason, this.config.cloudCode.quarantineSeconds, failures)).toISOString()
     };
     this.onAccountUpdated?.(account);
   }
@@ -456,7 +515,7 @@ export class CloudCodeAccountPool {
       lastSuccessAt: account.health.lastSuccessAt,
       lastFailureAt: nowIso(),
       disabledReason: reason,
-      nextRetryAt: new Date(Date.now() + quarantineMs(reason, this.config.cloudCode.quarantineSeconds, failures)).toISOString()
+      nextRetryAt: new Date(Date.now() + cloudCodeQuarantineMs(reason, this.config.cloudCode.quarantineSeconds, failures)).toISOString()
     };
     this.onAccountUpdated?.(account);
   }
@@ -464,6 +523,10 @@ export class CloudCodeAccountPool {
   reportStatusFailure(accountId: string, status: number): void {
     const account = this.accounts.find((item) => item.id === accountId);
     if (!account) {
+      return;
+    }
+    if (status === 408 || status === 504) {
+      this.reportFailure(accountId, "timeout");
       return;
     }
     if (this.config.cloudCode.preserveAvailabilityOnError) {

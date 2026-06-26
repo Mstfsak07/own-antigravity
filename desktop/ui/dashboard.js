@@ -1,5 +1,5 @@
 import { clear, el, renderSkeleton } from "./dom.js";
-import { selectTrafficView, TRAFFIC_COLUMNS } from "./traffic.js";
+import { protocolTone, selectTrafficView, statusTone, TRAFFIC_COLUMNS } from "./traffic.js";
 import {
   activityView,
   auditTrailView,
@@ -231,8 +231,7 @@ function formatPayload(value) {
 
 function statusBadge(status) {
   const code = Number(status);
-  const className = code >= 500 || code === 429 || code === 403 || code === 401 ? "status-badge error" : "status-badge success";
-  return el("span", { className, text: String(status) });
+  return el("span", { className: `status-badge ${statusTone(code)}`, text: String(status) });
 }
 
 export function renderMetrics(metrics, options = {}) {
@@ -269,7 +268,7 @@ export function renderMetrics(metrics, options = {}) {
   }
 
   for (const row of filteredRows) {
-    const protocolClass = row.provider === "-" ? "unknown" : row.provider.toLowerCase();
+    const protocolClass = protocolTone(row.provider);
     const cells = [];
     if (visibleColumns.status !== false) cells.push(el("td", {}, [statusBadge(row.statusCode)]));
     if (visibleColumns.method !== false) cells.push(el("td", { text: row.method }));

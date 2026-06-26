@@ -14,7 +14,9 @@
     "desktop": "npm run build && electron desktop/main.cjs",
     "desktop:dev": "npm run build && electron desktop/main.cjs",
     "desktop:pack": "npm run build && electron-builder --dir",
-    "desktop:dist": "npm run build && electron-builder --win",
+    "desktop:setup": "node scripts/clean-desktop-release.cjs && npm run build && electron-builder --win nsis",
+    "desktop:portable": "npm run build && electron-builder --win portable",
+    "desktop:dist": "npm run desktop:setup",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/cli.js server",
     "doctor": "tsx src/cli.ts doctor",
@@ -57,7 +59,6 @@
     "win": {
       "icon": "build/icon.ico",
       "target": [
-        "portable",
         "nsis"
       ]
     },

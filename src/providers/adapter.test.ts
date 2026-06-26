@@ -60,6 +60,7 @@ describe("provider adapters", () => {
   it("maps provider errors into stable gateway classes", () => {
     expect(mapProviderStatus(401)).toBe("auth_error");
     expect(mapProviderStatus(429)).toBe("rate_limit");
+    expect(mapProviderStatus(504)).toBe("timeout");
     expect(mapProviderError(new TypeError("fetch failed"))).toBe("network_error");
     expect(mapProviderError(new Error("request timeout"))).toBe("timeout");
     expect(providerErrorPayload("gemini", new Error("request timeout")).statusCode).toBe(504);

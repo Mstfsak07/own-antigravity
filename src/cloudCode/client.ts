@@ -2,6 +2,7 @@ import type { CloudCodeAccount, ProxyConfig } from "../types.js";
 import { resolveRequestUserAgent } from "../requestUserAgent.js";
 
 const retryableStatuses = new Set([408, 429, 500, 502, 503, 504]);
+const CLOUD_CODE_FETCH_TIMEOUT_MS = 30_000;
 
 function buildUrl(baseUrl: string, method: "generateContent" | "streamGenerateContent", search?: string): string {
   return `${baseUrl}:${method}${search ? `?${search}` : ""}`;
@@ -37,7 +38,8 @@ export async function callCloudCode(
     const response = await fetch(buildUrl(baseUrl, method, search), {
       method: "POST",
       headers: headers(account, body, config),
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(CLOUD_CODE_FETCH_TIMEOUT_MS)
     });
 
     if (!retryableStatuses.has(response.status)) {

@@ -3,7 +3,9 @@ import {
   defaultTrafficColumns,
   mergeTrafficColumns,
   normalizeTrafficRecord,
-  selectTrafficView
+  protocolTone,
+  selectTrafficView,
+  statusTone
 } from "../desktop/ui/traffic.js";
 
 function formatTrafficPayload(value: unknown): string {
@@ -30,6 +32,16 @@ describe("desktop traffic helpers", () => {
       duration: true,
       time: true
     });
+  });
+
+  it("maps status and protocol tones for traffic badges", () => {
+    expect(statusTone(200)).toBe("success");
+    expect(statusTone(404)).toBe("error");
+    expect(statusTone(500)).toBe("warning");
+    expect(protocolTone("gemini")).toBe("gemini");
+    expect(protocolTone("Claude")).toBe("claude");
+    expect(protocolTone("cloudCode")).toBe("cloudcode");
+    expect(protocolTone("")).toBe("unknown");
   });
 
   it("filters traffic rows and derives counters from recent requests", () => {
